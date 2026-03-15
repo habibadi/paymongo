@@ -3,124 +3,102 @@ import Ajv from 'ajv';
 
 const ajv = new Ajv({ allErrors: true });
 
-/**
- * Schemas defined based on Swagger Definitions
- * main.PaymentRequest, main.PaymentResponse, main.ErrorResponse
- */
-const paymentRequestSchema = {
-  type: 'object',
-  properties: {
-    orderId: { type: 'string' },
-    amount: { type: 'number' },
-    paymentMethod: { type: 'string' },
-    cardNumber: { type: 'string' },
-    expiryDate: { type: 'string' },
-    cvv: { type: 'string' }
-  },
-  required: ['orderId', 'amount', 'paymentMethod']
-};
-
+// JSON Schema Definitions based on Swagger
 const paymentResponseSchema = {
-  type: 'object',
-  properties: {
-    transactionId: { type: 'string' },
-    status: { type: 'string' },
-    message: { type: 'string' }
+  "type": "object",
+  "properties": {
+    "message": { "type": "string" },
+    "status": { "type": "string" }
   },
-  required: ['transactionId', 'status']
+  "required": ["message", "status"]
 };
 
 const errorResponseSchema = {
-  type: 'object',
-  properties: {
-    code: { type: 'integer' },
-    message: { type: 'string' },
-    errors: { type: 'array', items: { type: 'string' } }
+  "type": "object",
+  "properties": {
+    "error": { "type": "string" }
   },
-  required: ['message']
+  "required": ["error"]
 };
 
-test.describe('POST /api/checkout', () => {
-  const endpoint = '/api/checkout';
+test.describe('Checkout API - /api/checkout', () => {
 
-  test('should successfully process payment (Happy Path)', async ({ request }) => {
-    const validPayload = {
-      orderId: 'ORD-12345',
-      amount: 150.50,
-      paymentMethod: 'credit_card',
-      cardNumber: '4111222233334444',
-      expiryDate: '12/25',
-      cvv: '123'
+  test('should process payment successfully (Happy Path)', async ({ request }) => {
+    const payload = {
+      amount: 50,
+      cardNumber: "4242 4242 4242 4242",
+      cvv: "123",
+      expiry: "12/26"
     };
 
-    const response = await request.post(endpoint, {
-      data: validPayload
+    const response = await request.post('/api/checkout', {
+      data: payload
     });
 
+    // Validate Status Code
     expect(response.status()).toBe(200);
 
     const responseBody = await response.json();
+
+    // Validate Schema
     const validate = ajv.compile(paymentResponseSchema);
     const isValid = validate(responseBody);
+    expect(isValid, `Schema validation errors: ${JSON.stringify(validate.errors)}`).toBe(true);
 
-    if (!isValid) {
-      console.error('Schema Validation Errors:', ajv.errorsText(validate.errors));
-    }
-
-    expect(isValid).toBe(true);
+    // Validate Business Logic
     expect(responseBody.status).toBe('success');
   });
 
-  test('should return 400 Bad Request when mandatory fields are missing', async ({ request }) => {
-    const invalidPayload = {
-      orderId: 'ORD-12345'
-      // amount and paymentMethod missing
+  test('should return 400 Bad Request when input type is invalid (Negative Path)', async ({ request }) => {
+    const payload = {
+      amount: "fifty", // Should be number
+      cardNumber: "4242 4242 4242 4242",
+      cvv: "123",
+      expiry: "12/26"
     };
 
-    const response = await request.post(endpoint, {
-      data: invalidPayload
+    const response = await request.post('/api/checkout', {
+      data: payload
     });
 
+    // Validate Status Code
     expect(response.status()).toBe(400);
 
     const responseBody = await response.json();
+
+    // Validate Schema
     const validate = ajv.compile(errorResponseSchema);
     const isValid = validate(responseBody);
-
-    if (!isValid) {
-      console.error('Schema Validation Errors:', ajv.errorsText(validate.errors));
-    }
-
-    expect(isValid).toBe(true);
-    expect(responseBody.message).toContain('required');
+    expect(isValid, `Schema validation errors: ${JSON.stringify(validate.errors)}`).toBe(true);
+    
+    expect(responseBody.error).toBeDefined();
   });
 
-  test('should return 400 Bad Request for invalid data types', async ({ request }) => {
-    const malformedPayload = {
-      orderId: 'ORD-12345',
-      amount: "one hundred", // Should be number
-      paymentMethod: 'credit_card'
+  test('should handle invalid business logic with 200 OK Soft-Fail (Negative Path)', async ({ request }) => {
+    // Scenario: Business logic invalid (e.g. card declined/wrong logic) returns 200 but status not success
+    const payload = {
+      amount: 1000000, // Trigger logic failure via high amount
+      cardNumber: "0000 0000 0000 0000",
+      cvv: "000",
+      expiry: "01/01"
     };
 
-    const response = await request.post(endpoint, {
-      data: malformedPayload
+    const response = await request.post('/api/checkout', {
+      data: payload
     });
 
-    // Validating response code 400
-    expect(response.status()).toBe(400);
+    // Per requirement: Business logic invalid returns 200 OK
+    expect(response.status()).toBe(200);
 
-    // Defensive check before parsing JSON
-    const contentType = response.headers()['content-type'];
-    if (contentType && contentType.includes('application/json')) {
-      const responseBody = await response.json();
-      const validate = ajv.compile(errorResponseSchema);
-      const isValid = validate(responseBody);
-      
-      expect(isValid).toBe(true);
-    } else {
-      const text = await response.text();
-      console.warn('Response was not JSON:', text);
-      expect(response.status()).toBe(400);
-    }
+    const responseBody = await response.json();
+
+    // Validate Schema remains consistent
+    const validate = ajv.compile(paymentResponseSchema);
+    const isValid = validate(responseBody);
+    expect(isValid, `Schema validation errors: ${JSON.stringify(validate.errors)}`).toBe(true);
+
+    // Assert Soft-Fail indicator
+    expect(responseBody.status).not.toBe('success');
   });
+
 });

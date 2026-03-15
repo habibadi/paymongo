@@ -105,8 +105,10 @@ Technical Requirements:
 5. Variable Naming: Gunakan gaya camelCase. Nama tes harus deskriptif.
 6. Endpoint & Method: Gunakan HTTP method dan Endpoint Path persis seperti yang diberikan di text input. Jangan mengubah atau mengarang endpoint path sendiri. Gunakan path relatif (misal: /api/checkout) karena baseURL sudah diatur global.
 7. Handling Response: Pastikan ekspektasi HTTP status code persis dan akurat sesuai dengan kondisi test. Jika response berisiko bukan JSON (misalnya error 404 dari server HTML), berhati-hatilah saat memanggil \`response.json()\`. Pastikan parameter ajv memvalidasi error message jika tersedia.
+8. Soft-Fail & Context: Aplikasi ini memiliki desain "Soft-Fail". Jika input salah format (contoh tipe data) server return 400. TAPI jika secara business logic invalid (contoh: kartu kredit salah), server MERESPON 200 OK dengan property JSON seperti \`valid: false\`. BACA DESKRIPSI SWAGGER DENGAN SANGAT TELITI! Jika deskripsi spesifik bilang "AKAN SELALU RETURN 500" maka buat test case yang ekspektasi 500.
+9. Schema Definitions: Skema yang sesungguhnya ada pada input "Full Swagger Definitions". Cek "$ref" secara presisi di bagian tersebut untuk mengetahui apakah nama field itu \`valid\` atau \`isValid\`, dll. JANGAN MENGARANG SKEMA SENDIRI!
 
-Input Swagger Snippet:
+Input Swagger Snippet & Definitions:
 JSON
 [MASUKKAN POTONGAN SWAGGER DISINI]
 
@@ -127,7 +129,11 @@ Endpoint Path: ${api.path}
 
 API Schema Snippet:
 JSON
-${JSON.stringify(api.schemaSnippet, null, 2)}`;
+${JSON.stringify(api.schemaSnippet, null, 2)}
+
+Full Swagger Definitions (Reference these for understanding $refs in Responses and Requests):
+JSON
+${JSON.stringify(swaggerData.definitions, null, 2)}`;
         
         console.log(`✨ Calling Gemini for: ${api.key}...`);
         

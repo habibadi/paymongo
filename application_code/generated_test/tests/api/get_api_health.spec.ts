@@ -1,63 +1,79 @@
 import { test, expect } from '@playwright/test';
 import Ajv from 'ajv';
 
-const ajv = new Ajv({ allErrors: true, verbose: true });
+const ajv = new Ajv({ allErrors: true });
 
-/**
- * Schema definition based on main.HealthResponse
- */
-const healthResponseSchema = {
+// JSON Schemas derived from Swagger Definitions
+const mainHealthResponseSchema = {
   type: 'object',
   properties: {
-    status: { type: 'string' },
-    version: { type: 'string' },
-    uptime: { type: 'number' }
+    message: { type: 'string' },
+    status: { type: 'string' }
   },
-  required: ['status'],
-  additionalProperties: true
+  required: ['message', 'status'],
+  additionalProperties: false
 };
 
-test.describe('GET /api/health', () => {
+const mainErrorResponseSchema = {
+  type: 'object',
+  properties: {
+    error: { type: 'string' }
+  },
+  required: ['error'],
+  additionalProperties: false
+};
+
+test.describe('API Automation: GET /api/health', () => {
   
-  test('should return 200 OK and valid schema - Happy Path', async ({ request }) => {
+  test('should return 200 OK and valid health status (Happy Path)', async ({ request }) => {
     const response = await request.get('/api/health');
     
-    // Validate Status Code
+    // Assert status code
     expect(response.status()).toBe(200);
-
+    
     const responseBody = await response.json();
     
-    // Validate Schema using Ajv
-    const validate = ajv.compile(healthResponseSchema);
-    const isValid = validate(responseBody);
+    // Validate Schema
+    const validate = ajv.compile(mainHealthResponseSchema);
+    const valid = validate(responseBody);
     
-    if (!isValid) {
-      console.error('Ajv Validation Errors:', validate.errors);
+    if (!valid) {
+      console.error('AJV Schema Errors:', validate.errors);
     }
     
-    expect(isValid, 'Response schema should match the definition').toBe(true);
-    expect(responseBody.status).toBeDefined();
+    expect(valid).toBe(true);
+    expect(responseBody.status).toBe('healthy');
   });
 
-  test('should return 405 Method Not Allowed when using POST - Negative Path', async ({ request }) => {
+  test('should return 405 Method Not Allowed when using POST (Negative Path)', async ({ request }) => {
     const response = await request.post('/api/health', {
       data: {}
     });
 
-    // Validating that the health endpoint does not accept POST method
+    // Validating that the health endpoint does not accept POST
     expect(response.status()).toBe(405);
-  });
-
-  test('should return 404 Not Found for incorrect sub-resource - Negative Path', async ({ request }) => {
-    const response = await request.get('/api/health/undefined-route');
-
-    // Validating behavior for invalid extended path
-    expect(response.status()).toBe(404);
     
+    // Safety check for JSON parsing in case of HTML error pages
     const contentType = response.headers()['content-type'];
     if (contentType && contentType.includes('application/json')) {
-      const errorBody = await response.json();
-      expect(errorBody).toBeDefined();
+      const responseBody = await response.json();
+      const validate = ajv.compile(mainErrorResponseSchema);
+      const valid = validate(responseBody);
+      expect(valid).toBe(true);
+    }
+  });
+
+  test('should return 404 Not Found for incorrect health endpoint path (Negative Path)', async ({ request }) => {
+    const response = await request.get('/api/healthcheck-invalid');
+
+    expect(response.status()).toBe(404);
+    
+    // Most servers return 404 for non-existent paths, check if it follows error schema if JSON
+    const contentType = response.headers()['content-type'];
+    if (contentType && contentType.includes('application/json')) {
+      const responseBody = await response.json();
+      const validate = ajv.compile(mainErrorResponseSchema);
+      expect(validate(responseBody)).toBe(true);
     }
   });
 
