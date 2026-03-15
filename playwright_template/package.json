@@ -33,7 +33,7 @@
     "author": "",
     "license": "MIT",
     "devDependencies": {
-        "@playwright/test": "^1.40.0",
+        "@playwright/test": "1.58.2",
         "@types/node": "^20.8.0",
         "@typescript-eslint/eslint-plugin": "^6.7.0",
         "@typescript-eslint/parser": "^6.7.0",
