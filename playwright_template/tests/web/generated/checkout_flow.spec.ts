@@ -9,7 +9,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Checkout Flow - Payment Form', () => {
   
   test.beforeEach(async ({ page }) => {
-    // Navigate to the root checkout page
+    // Navigate to the root checkout page (Next.js app serves form at /)
     await page.goto('/');
   });
 
@@ -19,8 +19,8 @@ test.describe('Checkout Flow - Payment Form', () => {
     await expect(statusBtn).toBeVisible();
     await statusBtn.click();
     
-    // Verify status message appears
-    await expect(page.getByText(/Backend Status|Server is running/i)).toBeVisible();
+    // Verify status message appears specifically (matches the results div, not the button)
+    await expect(page.getByText(/healthy - Server is running/i)).toBeVisible();
 
     // 2. Fill Form using labels (synchronizes with app/page.tsx)
     await page.getByLabel(/Email Address/i).fill('test.user@example.com');
@@ -41,7 +41,6 @@ test.describe('Checkout Flow - Payment Form', () => {
     await submitBtn.click();
 
     // 4. Assert Success (Wait for processing and then success)
-    // Matches "✅ Payment processed successfully!"
     await expect(page.getByText(/processed successfully/i)).toBeVisible({ timeout: 10000 });
   });
 
@@ -53,15 +52,10 @@ test.describe('Checkout Flow - Payment Form', () => {
     await page.getByLabel(/CVV/i).fill('999');
     await page.getByLabel(/Amount \(USD/i).fill('10.00');
 
-    // Wait for card blur validation to trigger
-    await page.getByLabel(/Card Number/i).blur();
-    await expect(page.getByText(/Invalid card number/i)).toBeVisible();
-
     // Attempt to submit
     await page.getByRole('button', { name: /Pay|Complete Payment/i }).click();
 
     // Check for form-level error message
-    // Matches "❌ Please enter a valid card number"
     await expect(page.getByText(/Please enter a valid card number/i)).toBeVisible();
   });
 

@@ -19,8 +19,8 @@ test.describe('Checkout Flow - Payment Form', () => {
     await expect(statusBtn).toBeVisible();
     await statusBtn.click();
     
-    // Verify status message appears
-    await expect(page.getByText(/Backend Status|Server is running/i)).toBeVisible();
+    // Verify status message appears specifically (matches the results div, not the button)
+    await expect(page.getByText(/healthy - Server is running/i)).toBeVisible();
 
     // 2. Fill Form using labels (synchronizes with app/page.tsx)
     await page.getByLabel(/Email Address/i).fill('test.user@example.com');
