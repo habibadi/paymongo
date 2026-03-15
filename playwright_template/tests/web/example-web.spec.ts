@@ -36,28 +36,29 @@ test.describe('Web Automation Example', () => {
 
 test.describe('E-commerce Checkout Example', () => {
     test('should handle checkout flow', async ({ page }) => {
-        // Example test for generic e-commerce checkout
-        test.skip(true, 'Implement based on your actual checkout flow');
+        // Open the app
+        await page.goto('/');
 
-        // Navigate to checkout page
-        await page.goto('/checkout');
+        // Fill email and card number
+        await page.fill('input[name="email"]', 'tester@example.com');
+        await page.fill('input[name="cardNumber"]', '4242 4242 4242 4242');
+        
+        // Tab out to trigger card validation blur event
+        await page.press('input[name="cardNumber"]', 'Tab');
+        
+        // Wait for card validation to finish (Luhn check)
+        await expect(page.locator('text=Valid card number')).toBeVisible({ timeout: 5000 });
 
-        // Fill shipping information
-        await page.fill('[name="firstName"]', 'John');
-        await page.fill('[name="lastName"]', 'Doe');
-        await page.fill('[name="email"]', 'john.doe@example.com');
-        await page.fill('[name="address"]', '123 Test Street');
-
-        // Fill payment information (use your test card numbers)
-        await page.fill('[data-testid="card-number"]', '4111111111111111');
-        await page.fill('[data-testid="expiry"]', '12/25');
-        await page.fill('[data-testid="cvc"]', '123');
+        // Fill remaining fields
+        await page.fill('input[name="expiry"]', '12/26');
+        await page.fill('input[name="cvv"]', '123');
+        await page.fill('input[name="amount"]', '99.99');
 
         // Submit order
-        await page.click('[data-testid="submit-button"]');
+        await page.click('button[type="submit"]');
 
-        // Wait for order confirmation
-        await expect(page.locator('[data-testid="order-confirmation"]')).toBeVisible({
+        // Wait for final success confirmation text
+        await expect(page.locator('text=Payment processed successfully')).toBeVisible({
             timeout: 10000,
         });
     });
