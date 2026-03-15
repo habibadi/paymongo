@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { execSync } = require('child_process');
 
 console.log("🤖 AI Test Generator starting...");
 
@@ -97,6 +98,17 @@ Technical Requirements:
 3. Test Scenarios: Buat minimal 1 Happy Path (2xx) dan 2 Negative Path (4xx/400/404/422).
 4. Format: Hasilkan hanya kode TypeScript. Jangan ada penjelasan teks di luar blok kode.
 5. Variable Naming: Gunakan gaya camelCase. Nama tes harus deskriptif.
+
+Input Swagger Snippet:
+JSON
+[MASUKKAN POTONGAN SWAGGER DISINI]
+
+Output Format Example:
+TypeScript
+import { test, expect } from '@playwright/test';
+import Ajv from 'ajv';
+
+// ... kode tes ...
 `;
 
 setTimeout(() => {
@@ -105,7 +117,6 @@ setTimeout(() => {
         const userPrompt = `Generate a Playwright API test for this specific endpoint only:\nJSON\n${JSON.stringify(api.schemaSnippet, null, 2)}`;
         
         console.log(`✨ Gemini processing: ${api.key}`);
-        // console.log("Prompt preview length:", userPrompt.length);
         
         // Sanitize filename
         const safePath = api.path.replace(/\//g, '_').replace(/^_/, '');
@@ -127,6 +138,18 @@ test.describe('API Endpoint: ${api.key}', () => {
 `;
         fs.writeFileSync(filePath, mockContent);
         console.log(`  📝 Created: tests/api/${filename}`);
+
+        // 5. Linting Guardrail
+        console.log(`  🛡️ Running Linting Guardrail on ${filename}...`);
+        try {
+            // Run eslint specifically on this file
+            execSync(`npx eslint "${filePath}"`, { stdio: 'ignore' });
+            console.log(`  ✅ Linting passed for ${filename}`);
+        } catch (error) {
+            console.error(`  ❌ Linting failed for ${filename}! Rejecting AI output.`);
+            fs.unlinkSync(filePath); // Delete the invalid file
+            // Note: In a real scenario, you might want to push this back to a retry queue
+        }
     });
 
     // Save state after successful generation
