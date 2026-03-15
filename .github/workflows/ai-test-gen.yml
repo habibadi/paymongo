@@ -33,7 +33,9 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          docker-compose up --build --exit-code-from tester
+          # Use docker compose to orchestrate the entire environment
+          # The --exit-code-from tester ensures the job fails if a test fails
+          docker compose up --build --exit-code-from tester
 
       - name: Upload Test Artifacts
         if: always()
