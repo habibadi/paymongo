@@ -1,0 +1,23 @@
+FROM mcr.microsoft.com/playwright:v1.40.0-focal
+
+WORKDIR /test-runner
+
+# Copy the "Blueprint" (Your template)
+# We assume playwright_template is sibling to application_code in the repo
+COPY ./playwright_template /test-runner/blueprint
+
+# Install dependencies in the blueprint folder to pre-warm the image
+WORKDIR /test-runner/blueprint
+RUN npm install
+RUN npx playwright install chromium
+
+# Create the output directory for AI
+WORKDIR /test-runner
+RUN mkdir -p generated_test/test
+
+# Setup entrypoint to copy blueprint and run tests
+# This script will be overriden or used by CI to actually run tests
+COPY ./scripts/run-tests.sh /usr/local/bin/run-tests
+RUN chmod +x /usr/local/bin/run-tests
+
+CMD ["run-tests"]

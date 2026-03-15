@@ -1,0 +1,44 @@
+name: AI Test Generation & CI Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test-generation:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies for Generator
+        run: |
+          cd application_code
+          npm install
+
+      - name: Run AI Test Generator (Mocked)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node application_code/scripts/generate-tests.js
+
+      - name: Build and Run Tests via Docker
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          docker-compose up --build --exit-code-from tester
+
+      - name: Upload Test Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: application_code/generated_test/playwright-report/
+          retention-days: 7

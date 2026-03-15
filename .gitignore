@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+.next/
+dist/
+
+# Test Results & Reports
+playwright-report/
+test-results/
+blob-report/
+playwright-report/
+
+# Env & Secrets
+.env
+.env.local
+.env.development.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Archives
+*.zip
+*.tar.gz

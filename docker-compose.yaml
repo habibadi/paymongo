@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ./application_code
+      dockerfile: Dockerfile.api
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ui:
+    build:
+      context: ./application_code
+      dockerfile: Dockerfile.ui
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  tester:
+    build:
+      context: .
+      dockerfile: ./application_code/Dockerfile.tester
+    depends_on:
+      api:
+        condition: service_healthy
+      ui:
+        condition: service_healthy
+    volumes:
+      - ./application_code/generated_test:/test-runner/generated_test
+    environment:
+      - TEST_ENV=staging
+      - STAGING_BASE_URL=http://ui:3000
+      - STAGING_API_URL=http://api:8080
