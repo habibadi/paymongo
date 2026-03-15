@@ -1,6 +1,6 @@
 {
-  "POST /api/checkout": "5f9e81d32d15f8115f614907c177d48814aae99d3f58db8344b8599007e3b896",
-  "GET /api/health": "ecfbca7763694c8f3e43ee7527d0525c2ae510c2b7b734637afd2c4feb210098",
-  "POST /api/validate-card": "bef83127d99ac151c3f5cc1d99ca4146b65faae31b30b86cdf7ac1f1e1048edc",
-  "POST /api/validate-email": "bf7bb23f0f5c85e4d43df4f9d550b11381746df30aa0909c0fb57fe6ca363f9b"
+  "POST /api/checkout": "93f446fb2e22b82a9687ce911cfff76d8c22d837a089202184bf6e9234190f83",
+  "GET /api/health": "eb6d3fd451d5f03e613423b975f996fd9fd6d5e066baa3f9485cc4608e9c6262",
+  "POST /api/validate-card": "e6a7bf5f06a99e742bb831f67927905973f160169adf419c525997de026d3078",
+  "POST /api/validate-email": "f8b3599bf5b3bb19294f464bc328b6aa0bdc4cf8b950aa6d74c71b9ac30fb27b"
 }
