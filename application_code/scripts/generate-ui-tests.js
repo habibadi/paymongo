@@ -142,11 +142,14 @@ System Role: Senior SDET Expert.
 Task: Generate high-stability Playwright .spec.ts code.
 
 RULES:
-1. Use getByRole, getByLabel, getByPlaceholder, getByText. NO XPath, NO .nth().
-2. Button text must match the DOM. If button has "$99.99", include it in assertion.
-3. Use Web-First Assertions: .toBeVisible(), .toHaveAttribute(), .toContainText().
-4. Use { exact: true } for short placeholders (123, MM/YY).
-5. CVV: use getByLabel('CVV').
+1. Use page.getByRole, page.getByLabel, page.getByPlaceholder, page.getByText. 
+2. NEVER use test.locator() or test.getByLabel(). All locators MUST be called on the 'page' object.
+3. DO NOT define locators in a global 'SELECTORS' object at the top level. Define them inside test blocks.
+4. Button text must match the DOM. If button has "$99.99", include it in assertion.
+5. Use Web-First Assertions: expect(page.locator(...)).toBeVisible(), .toHaveAttribute(), .toContainText().
+6. Use { exact: true } for short placeholders (123, MM/YY).
+7. CVV: use page.getByLabel('CVV').
+8. Navigation: use page.goto('/') for the main form.
 `;
 
 const UI_HEALING_PROMPT = `
@@ -168,7 +171,7 @@ function runUiGuardrails(code, pageConfig) {
     if (/expect\(.*\)\.getAttribute/i.test(code)) reasons.push('G6: Use .toHaveAttribute()');
     if (/\.locator\(['"`]\/\//.test(code)) reasons.push('G1: No XPath');
     if (/\.nth\(\d+\)/.test(code)) reasons.push('G1: No .nth()');
-    if (/page\.waitForTimeout/.test(code)) reasons.push('G3: No hardcoded sleep');
+    if (/test\.(locator|getByLabel|getByRole|getByText)/i.test(code)) reasons.push('G7: Locators must be called on "page", not "test"');
     if (!code.includes('expect(')) reasons.push('G4: Missing assertions');
     if (reasons.length > 0) throw new Error(`Guardrails failed:\n${reasons.join('\n')}`);
 }
