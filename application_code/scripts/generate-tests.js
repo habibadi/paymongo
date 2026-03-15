@@ -1,12 +1,8 @@
-/**
- * generate-tests.js (MOCK)
- * This script simulates the AI Test Generation process.
- */
-
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { execSync } = require('child_process');
+require('dotenv').config();
 
 console.log("🤖 AI Test Generator starting...");
 
@@ -142,13 +138,16 @@ test.describe('API Endpoint: ${api.key}', () => {
         // 5. Linting Guardrail
         console.log(`  🛡️ Running Linting Guardrail on ${filename}...`);
         try {
-            // Run eslint specifically on this file
-            execSync(`npx eslint "${filePath}"`, { stdio: 'ignore' });
+            // Point to the template's eslint config
+            const eslintConfig = path.resolve(__dirname, '../../playwright_template/.eslintrc.js');
+            // Use npx eslint with specific config
+            // We use -c to specify config and --no-ignore to ensure it checks the file
+            execSync(`npx eslint -c "${eslintConfig}" "${filePath}"`, { stdio: 'pipe' });
             console.log(`  ✅ Linting passed for ${filename}`);
         } catch (error) {
             console.error(`  ❌ Linting failed for ${filename}! Rejecting AI output.`);
+            // console.error(error.stdout.toString()); // Log the actual lint errors
             fs.unlinkSync(filePath); // Delete the invalid file
-            // Note: In a real scenario, you might want to push this back to a retry queue
         }
     });
 
