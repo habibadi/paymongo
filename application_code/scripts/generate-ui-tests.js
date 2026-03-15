@@ -210,14 +210,17 @@ Tugas Anda adalah menghasilkan file test Playwright .spec.ts yang kuat dan stabi
 2. BUTTON LOCATORS — SANGAT PENTING:
    - JANGAN PERNAH menggunakan { name: /submit/i } jika teks pada button bukan "Submit".
    - Lihat teks di dalam tag <button> yang diberikan di DOM snippet.
-   - Jika tombol berisi teks "Pay $99.99", gunakan getByRole('button', { name: /Pay|Complete/i }).
+   - Jika tombol berisi teks "Pay $99.99", pastikan menggunakan simbol mata uang ($) yang sesuai dalam assertion.
+   - Contoh: await expect(page.getByRole('button')).toContainText('Pay $99.99');
 
-3. STRICT MODE SAFETY:
+3. ASSERTION SYNTAX:
+   - Gunakan Playwright Web-First Assertions: toHaveAttribute(), toHaveValue(), toBeVisible().
+   - JANGAN gunakan getAttribute() di dalam expect() — yang benar adalah .toHaveAttribute('attr', 'value').
+
+4. STRICT MODE SAFETY:
    - getByPlaceholder() WAJIB menggunakan { exact: true } untuk placeholder pendek (CVV, 123, MM/YY).
 
-4. CVV FIELD: Gunakan getByLabel('CVV') karena field ini sering ambiguous dengan nomor kartu.
-
-5. ASSERTIONS: Setiap test wajib memvalidasi state UI (misal: await expect(page.getByText('✅')).toBeVisible()).
+5. CVV FIELD: Gunakan getByLabel('CVV') karena field ini sekarang sudah terhubung dengan htmlFor/id di DOM.
 
 Context: Checkout Page. Success message contains 'processed' or '✅'. Failure contains '❌'.
 
@@ -228,10 +231,18 @@ Cleaned HTML DOM:
 
 // ─── 6. GUARDRAILS ───────────────────────────────────────────────────────────
 /**
- * Runs all 5 Anti-Fragile Guardrails against generated code.
+ * Runs all 6 Anti-Fragile Guardrails against generated code.
  */
 function runUiGuardrails(code, pageConfig) {
     const failureReasons = [];
+
+    // ── Guardrail 6: Assertion Method Hallucination Check ────────────────────
+    if (/\.getAttribute\s*\(/i.test(code) && /expect\(.*\).getAttribute/i.test(code)) {
+        failureReasons.push(
+            'G6_ASSERTION_METHOD: Invalid assertion method getAttribute() detected inside expect(). ' +
+            'Use .toHaveAttribute("name", "value") instead.'
+        );
+    }
 
     // ── Guardrail 5: Button Label Hallucination Check ────────────────────────
     if (/getByRole\(['"`]button['"`],\s*{\s*name:\s*\/submit\/i\s*}\)/i.test(code)) {
