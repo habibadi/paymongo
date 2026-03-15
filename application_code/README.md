@@ -10,7 +10,7 @@ A full-stack application demonstrating a payment checkout system with **soft-fai
 - **Next.js Frontend** with TypeScript
 - **Mock Payment Processing**
 
-## 🏗️ Architecture
+## 🏗️ Architectures
 
 ### Backend (Golang)
 - **Port**: 8080
