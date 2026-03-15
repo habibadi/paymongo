@@ -55,16 +55,37 @@ jobs:
             exit 0
           fi
           
+          # 1. Parse Test Stats from JUnit XML
+          XML_PATH="application_code/generated_test/test-results/results.xml"
+          if [ -f "$XML_PATH" ]; then
+            TOTAL=$(grep -oP 'tests="\K[^"]+' "$XML_PATH" | head -1 || echo "0")
+            FAILURES=$(grep -oP 'failures="\K[^"]+' "$XML_PATH" | head -1 || echo "0")
+            ERRORS=$(grep -oP 'errors="\K[^"]+' "$XML_PATH" | head -1 || echo "0")
+            FAILED_COUNT=$((FAILURES + ERRORS))
+            PASSED_COUNT=$((TOTAL - FAILED_COUNT))
+            STATS_TEXT="📊 **Stats**: Total $TOTAL | ✅ Pass $PASSED_COUNT | ❌ Fail $FAILED_COUNT"
+          else
+            STATS_TEXT="📊 **Stats**: Report not found"
+          fi
+          
+          # 2. Zip the Playwright Report
+          REPORT_ZIP="playwright-report.zip"
+          REPORT_DIR="application_code/generated_test/playwright-report"
+          if [ -d "$REPORT_DIR" ]; then
+            zip -r "$REPORT_ZIP" "$REPORT_DIR"
+          fi
+          
+          # 3. Prepare Payload
           STATUS="${{ job.status }}"
-          COLOR="65280" # Green for Success
-          if [ "$STATUS" = "failure" ]; then COLOR="16711680"; fi # Red for Failure
-          if [ "$STATUS" = "cancelled" ]; then COLOR="8421504"; fi # Gray for Cancelled
+          COLOR="65280" # Green
+          if [ "$STATUS" = "failure" ]; then COLOR="16711680"; fi # Red
           
           PAYLOAD=$(cat <<EOF
           {
             "embeds": [{
               "title": "🚀 CI/CD Status: $STATUS",
               "color": $COLOR,
+              "description": "$STATS_TEXT",
               "fields": [
                 { "name": "Repository", "value": "${{ github.repository }}", "inline": true },
                 { "name": "Branch", "value": "${{ github.ref_name }}", "inline": true },
@@ -78,4 +99,16 @@ jobs:
           EOF
           )
           
-          curl -H "Content-Type: application/json" -X POST -d "$PAYLOAD" "$DISCORD_WEBHOOK"
+          # 4. Send to Discord (Multipart if zip exists)
+          if [ -f "$REPORT_ZIP" ]; then
+            curl -H "Content-Type: multipart/form-data" \
+                 -X POST \
+                 -F "payload_json=$PAYLOAD" \
+                 -F "file=@$REPORT_ZIP" \
+                 "$DISCORD_WEBHOOK"
+          else
+            curl -H "Content-Type: application/json" \
+                 -X POST \
+                 -d "$PAYLOAD" \
+                 "$DISCORD_WEBHOOK"
+          fi
