@@ -7,7 +7,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "generate:api": "node scripts/generate-tests.js",
+    "generate:ui": "node scripts/generate-ui-tests.js",
+    "generate:all": "npm run generate:api && npm run generate:ui"
   },
   "keywords": [
     "payment",
