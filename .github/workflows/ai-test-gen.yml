@@ -44,3 +44,38 @@ jobs:
           name: playwright-report
           path: application_code/generated_test/playwright-report/
           retention-days: 7
+
+      - name: Notify Discord
+        if: always()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "DISCORD_WEBHOOK is not set, skipping notification."
+            exit 0
+          fi
+          
+          STATUS="${{ job.status }}"
+          COLOR="65280" # Green for Success
+          if [ "$STATUS" = "failure" ]; then COLOR="16711680"; fi # Red for Failure
+          if [ "$STATUS" = "cancelled" ]; then COLOR="8421504"; fi # Gray for Cancelled
+          
+          PAYLOAD=$(cat <<EOF
+          {
+            "embeds": [{
+              "title": "🚀 CI/CD Status: $STATUS",
+              "color": $COLOR,
+              "fields": [
+                { "name": "Repository", "value": "${{ github.repository }}", "inline": true },
+                { "name": "Branch", "value": "${{ github.ref_name }}", "inline": true },
+                { "name": "Commit", "value": "${{ github.event.head_commit.message }}", "inline": false },
+                { "name": "Action Run", "value": "[View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": false }
+              ],
+              "footer": { "text": "AI Test Generation Pipeline" },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }]
+          }
+          EOF
+          )
+          
+          curl -H "Content-Type: application/json" -X POST -d "$PAYLOAD" "$DISCORD_WEBHOOK"
