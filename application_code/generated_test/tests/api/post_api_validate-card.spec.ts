@@ -3,100 +3,102 @@ import Ajv from 'ajv';
 
 const ajv = new Ajv({ allErrors: true });
 
-// JSON Schemas derived from Swagger definitions
+// JSON Schema definitions based on Swagger refs
 const cardResponseSchema = {
-  type: "object",
+  type: 'object',
   properties: {
-    isValid: { type: "boolean" },
-    cardType: { type: "string" },
-    message: { type: "string" }
+    isValid: { type: 'boolean' },
+    cardType: { type: 'string' },
+    message: { type: 'string' }
   },
-  required: ["isValid"]
+  required: ['isValid'],
+  additionalProperties: false
 };
 
 const errorResponseSchema = {
-  type: "object",
+  type: 'object',
   properties: {
-    error: { type: "string" },
-    code: { type: "integer" },
-    message: { type: "string" }
+    code: { type: 'string' },
+    message: { type: 'string' }
   },
-  required: ["error"]
+  required: ['code', 'message'],
+  additionalProperties: false
 };
 
-test.describe('Card Validation API - POST /validate', () => {
-  const endpoint = '/validate';
+test.describe('POST /api/validate-card', () => {
+  const endpoint = '/api/validate-card';
 
-  test('should return 200 OK for a valid card number format', async ({ request }) => {
+  test('should return 200 OK for a valid card number (Happy Path)', async ({ request }) => {
     const payload = {
-      card: "4111222233334444"
+      cardNumber: '4111222233334444',
+      expiryMonth: 12,
+      expiryYear: 2025,
+      cvv: '123'
     };
 
     const response = await request.post(endpoint, {
       data: payload
     });
 
-    const responseBody = await response.json();
-
-    // Assert Status Code
     expect(response.status()).toBe(200);
 
-    // Schema Validation
+    const responseBody = await response.json();
     const validate = ajv.compile(cardResponseSchema);
     const valid = validate(responseBody);
-    
-    if (!valid) {
-      throw new Error(`Schema validation errors: ${JSON.stringify(validate.errors)}`);
-    }
 
-    // Business Logic Assertion
-    expect(responseBody.isValid).toBeDefined();
+    if (!valid) {
+      console.error('AJV Validation Errors:', validate.errors);
+    }
+    expect(valid).toBe(true);
+    expect(responseBody.isValid).toBe(true);
   });
 
-  test('should return 400 Bad Request when card field is missing', async ({ request }) => {
-    const payload = {};
-
-    const response = await request.post(endpoint, {
-      data: payload
-    });
-
-    const responseBody = await response.json();
-
-    // Assert Status Code
-    expect(response.status()).toBe(400);
-
-    // Schema Validation
-    const validate = ajv.compile(errorResponseSchema);
-    const valid = validate(responseBody);
-    
-    if (!valid) {
-      throw new Error(`Schema validation errors: ${JSON.stringify(validate.errors)}`);
-    }
-
-    // Assert Error Message
-    expect(responseBody.error).toBeTruthy();
-  });
-
-  test('should return 400 Bad Request for invalid data type in card field', async ({ request }) => {
+  test('should return 400 Bad Request for invalid card format (Negative Path)', async ({ request }) => {
     const payload = {
-      card: 123456789 // Should be a string based on common CardRequest definitions
+      cardNumber: 'invalid_card_string',
+      expiryMonth: 1,
+      expiryYear: 2020,
+      cvv: '99'
     };
 
     const response = await request.post(endpoint, {
       data: payload
     });
 
-    const responseBody = await response.json();
-
-    // Assert Status Code
     expect(response.status()).toBe(400);
 
-    // Schema Validation
+    const responseBody = await response.json();
     const validate = ajv.compile(errorResponseSchema);
     const valid = validate(responseBody);
-    
+
     if (!valid) {
-      throw new Error(`Schema validation errors: ${JSON.stringify(validate.errors)}`);
+      console.error('AJV Validation Errors:', validate.errors);
+    }
+    expect(valid).toBe(true);
+    expect(responseBody.message).toBeDefined();
+  });
+
+  test('should return 400 Bad Request when required fields are missing (Negative Path)', async ({ request }) => {
+    const payload = {
+      cardNumber: '4111222233334444'
+      // Missing other required fields
+    };
+
+    const response = await request.post(endpoint, {
+      data: payload
+    });
+
+    // Check if response is JSON before parsing to handle potential HTML error pages
+    const contentType = response.headers()['content-type'];
+    expect(response.status()).toBe(400);
+    
+    if (contentType && contentType.includes('application/json')) {
+      const responseBody = await response.json();
+      const validate = ajv.compile(errorResponseSchema);
+      const valid = validate(responseBody);
+      expect(valid).toBe(true);
+    } else {
+      throw new Error(`Expected JSON response but received ${contentType}`);
     }
   });
 });

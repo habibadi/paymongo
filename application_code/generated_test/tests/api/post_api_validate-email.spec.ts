@@ -1,110 +1,104 @@
 import { test, expect } from '@playwright/test';
 import Ajv from 'ajv';
 
-const ajv = new Ajv();
+const ajv = new Ajv({ allErrors: true });
 
-// JSON Schemas based on Swagger definitions
+/**
+ * JSON Schema Definitions based on Swagger Refs
+ * main.EmailResponse
+ */
 const emailResponseSchema = {
   type: 'object',
   properties: {
-    status: { type: 'string' },
+    isValid: { type: 'boolean' },
     message: { type: 'string' },
-    isValid: { type: 'boolean' }
+    timestamp: { type: 'string', format: 'date-time' }
   },
-  required: ['status', 'isValid']
+  required: ['isValid'],
+  additionalProperties: true
 };
 
+/**
+ * main.ErrorResponse
+ */
 const errorResponseSchema = {
   type: 'object',
   properties: {
-    error: { type: 'string' },
+    message: { type: 'string' },
     code: { type: 'integer' },
-    message: { type: 'string' }
+    details: { type: 'string' }
   },
-  required: ['error', 'code']
+  required: ['message'],
+  additionalProperties: true
 };
 
-test.describe('Email Validation API Tests', () => {
-  const endpoint = '/api/validate-email'; // Placeholder path based on snippet context
-
-  test('should validate a correct email format successfully (Happy Path)', async ({ request }) => {
+test.describe('POST /api/validate-email', () => {
+  
+  test('should return 200 OK and valid schema for a correctly formatted email', async ({ request }) => {
     const payload = {
-      email: 'test.user@example.com'
+      email: 'john.doe@example.com'
     };
 
-    const response = await request.post(endpoint, {
+    const response = await request.post('/api/validate-email', {
       data: payload
     });
 
-    const responseBody = await response.json();
-
-    // Assert status code
     expect(response.status()).toBe(200);
-
-    // Schema validation
+    
+    const responseBody = await response.json();
     const validate = ajv.compile(emailResponseSchema);
     const valid = validate(responseBody);
     
-    if (!valid) {
-      console.error('AJV Validation Errors:', validate.errors);
-    }
-    expect(valid).toBe(true);
-    expect(responseBody.isValid).toBe(true);
+    expect(valid, `Schema validation errors: ${JSON.stringify(validate.errors)}`).toBe(true);
+    expect(responseBody.isValid).toBeDefined();
   });
 
-  test('should return 400 for invalid email format (Negative Path)', async ({ request }) => {
+  test('should return 400 Bad Request when email field is missing or invalid', async ({ request }) => {
     const payload = {
       email: 'invalid-email-format'
     };
 
-    const response = await request.post(endpoint, {
+    const response = await request.post('/api/validate-email', {
       data: payload
     });
 
-    // In many API designs, validation errors return 400 or 422
+    // Validating status 400 as a standard negative path for input validation
     expect(response.status()).toBe(400);
-    
-    const responseBody = await response.json();
-    const validate = ajv.compile(errorResponseSchema);
-    expect(validate(responseBody)).toBe(true);
+
+    const contentType = response.headers()['content-type'];
+    if (contentType && contentType.includes('application/json')) {
+      const responseBody = await response.json();
+      const validate = ajv.compile(errorResponseSchema);
+      const valid = validate(responseBody);
+      expect(valid, `Error schema validation failed: ${JSON.stringify(validate.errors)}`).toBe(true);
+    }
   });
 
-  test('should return error when email field is missing (Negative Path)', async ({ request }) => {
-    const payload = {}; // Missing required 'email' field
-
-    const response = await request.post(endpoint, {
-      data: payload
-    });
-
-    // Validating against the documented 500 or expected 400 for bad request
-    const status = response.status();
-    expect([400, 500]).toContain(status);
-
-    const responseBody = await response.json();
-    const validate = ajv.compile(errorResponseSchema);
-    expect(validate(responseBody)).toBe(true);
-  });
-
-  test('should handle internal server error according to schema (Negative Path)', async ({ request }) => {
-    // Simulating a condition that triggers 500 if applicable, 
-    // or simply asserting structure if the environment hits an error
+  test('should return 500 Internal Server Error when server encounters an issue', async ({ request }) => {
+    // Simulating a payload that might trigger a server-side exception
     const payload = {
-      email: 'trigger-500@internal.com' 
+      email: 'trigger-500-error@system.local'
     };
 
-    const response = await request.post(endpoint, {
+    const response = await request.post('/api/validate-email', {
       data: payload
     });
 
-    if (response.status() === 500) {
+    expect(response.status()).toBe(500);
+
+    const contentType = response.headers()['content-type'];
+    if (contentType && contentType.includes('application/json')) {
       const responseBody = await response.json();
       const validate = ajv.compile(errorResponseSchema);
       const valid = validate(responseBody);
       
-      if (!valid) {
-        console.error('AJV Validation Errors (500):', validate.errors);
-      }
-      expect(valid).toBe(true);
+      expect(valid, `500 Error schema validation failed: ${JSON.stringify(validate.errors)}`).toBe(true);
+      expect(responseBody.message).toBeDefined();
+    } else {
+      // Fallback check if response is not JSON
+      const textResponse = await response.text();
+      expect(textResponse).not.toBeNull();
     }
   });
+
 });

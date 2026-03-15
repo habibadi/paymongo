@@ -1,112 +1,126 @@
 import { test, expect } from '@playwright/test';
 import Ajv from 'ajv';
 
-const ajv = new Ajv({ allErrors: true, verbose: true });
+const ajv = new Ajv({ allErrors: true });
 
-// JSON Schemas derived from Swagger definitions
+/**
+ * Schemas defined based on Swagger Definitions
+ * main.PaymentRequest, main.PaymentResponse, main.ErrorResponse
+ */
+const paymentRequestSchema = {
+  type: 'object',
+  properties: {
+    orderId: { type: 'string' },
+    amount: { type: 'number' },
+    paymentMethod: { type: 'string' },
+    cardNumber: { type: 'string' },
+    expiryDate: { type: 'string' },
+    cvv: { type: 'string' }
+  },
+  required: ['orderId', 'amount', 'paymentMethod']
+};
+
 const paymentResponseSchema = {
   type: 'object',
   properties: {
     transactionId: { type: 'string' },
     status: { type: 'string' },
-    amount: { type: 'number' },
-    currency: { type: 'string' },
-    timestamp: { type: 'string', format: 'date-time' }
+    message: { type: 'string' }
   },
-  required: ['transactionId', 'status'],
-  additionalProperties: false
+  required: ['transactionId', 'status']
 };
 
 const errorResponseSchema = {
   type: 'object',
   properties: {
-    errorCode: { type: 'string' },
-    errorMessage: { type: 'string' },
-    details: { type: 'array', items: { type: 'string' } }
+    code: { type: 'integer' },
+    message: { type: 'string' },
+    errors: { type: 'array', items: { type: 'string' } }
   },
-  required: ['errorCode', 'errorMessage'],
-  additionalProperties: false
+  required: ['message']
 };
 
-test.describe('Payment API Validation', () => {
-  const endpoint = '/api/v1/payments';
+test.describe('POST /api/checkout', () => {
+  const endpoint = '/api/checkout';
 
-  test('should successfully process payment - Happy Path', async ({ request }) => {
+  test('should successfully process payment (Happy Path)', async ({ request }) => {
     const validPayload = {
-      amount: 150.00,
-      currency: 'USD',
+      orderId: 'ORD-12345',
+      amount: 150.50,
       paymentMethod: 'credit_card',
-      orderId: 'ORD-12345'
+      cardNumber: '4111222233334444',
+      expiryDate: '12/25',
+      cvv: '123'
     };
 
     const response = await request.post(endpoint, {
       data: validPayload
     });
 
-    // Assert Status Code
     expect(response.status()).toBe(200);
 
-    // Validate Schema
     const responseBody = await response.json();
     const validate = ajv.compile(paymentResponseSchema);
     const isValid = validate(responseBody);
 
     if (!isValid) {
-      console.error('AJV Schema Validation Errors:', validate.errors);
+      console.error('Schema Validation Errors:', ajv.errorsText(validate.errors));
     }
-    
-    expect(isValid, 'Response body should match PaymentResponse schema').toBe(true);
-    expect(responseBody.status).toBe('SUCCESS');
+
+    expect(isValid).toBe(true);
+    expect(responseBody.status).toBe('success');
   });
 
-  test('should return 400 Bad Request when amount is missing - Negative Path', async ({ request }) => {
+  test('should return 400 Bad Request when mandatory fields are missing', async ({ request }) => {
     const invalidPayload = {
-      currency: 'USD',
-      paymentMethod: 'credit_card'
-      // amount is missing
+      orderId: 'ORD-12345'
+      // amount and paymentMethod missing
     };
 
     const response = await request.post(endpoint, {
       data: invalidPayload
     });
 
-    // Assert Status Code
     expect(response.status()).toBe(400);
 
-    // Validate Schema
     const responseBody = await response.json();
     const validate = ajv.compile(errorResponseSchema);
     const isValid = validate(responseBody);
 
     if (!isValid) {
-      console.error('AJV Schema Validation Errors:', validate.errors);
+      console.error('Schema Validation Errors:', ajv.errorsText(validate.errors));
     }
 
-    expect(isValid, 'Response body should match ErrorResponse schema').toBe(true);
-    expect(responseBody.errorCode).toBe('INVALID_PAYLOAD');
+    expect(isValid).toBe(true);
+    expect(responseBody.message).toContain('required');
   });
 
-  test('should return 400 Bad Request when currency format is invalid - Negative Path', async ({ request }) => {
-    const invalidPayload = {
-      amount: 100,
-      currency: 'INVALID_CURRENCY_CODE',
-      paymentMethod: 'debit_card',
-      orderId: 'ORD-999'
+  test('should return 400 Bad Request for invalid data types', async ({ request }) => {
+    const malformedPayload = {
+      orderId: 'ORD-12345',
+      amount: "one hundred", // Should be number
+      paymentMethod: 'credit_card'
     };
 
     const response = await request.post(endpoint, {
-      data: invalidPayload
+      data: malformedPayload
     });
 
-    // Assert Status Code
+    // Validating response code 400
     expect(response.status()).toBe(400);
 
-    // Validate Schema
-    const responseBody = await response.json();
-    const validate = ajv.compile(errorResponseSchema);
-    const isValid = validate(responseBody);
-
-    expect(isValid, 'Response body should match ErrorResponse schema').toBe(true);
-    expect(responseBody.errorMessage).toContain('currency');
+    // Defensive check before parsing JSON
+    const contentType = response.headers()['content-type'];
+    if (contentType && contentType.includes('application/json')) {
+      const responseBody = await response.json();
+      const validate = ajv.compile(errorResponseSchema);
+      const isValid = validate(responseBody);
+      
+      expect(isValid).toBe(true);
+    } else {
+      const text = await response.text();
+      console.warn('Response was not JSON:', text);
+      expect(response.status()).toBe(400);
+    }
   });
 });

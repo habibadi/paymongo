@@ -100,9 +100,11 @@ Anda adalah Senior SDET Expert yang berfokus pada API Automation menggunakan Pla
 Technical Requirements:
 1. Framework: Gunakan @playwright/test.
 2. Schema Validation: Wajib menggunakan library ajv untuk memvalidasi response body terhadap skema JSON yang ada di Swagger.
-3. Test Scenarios: Buat minimal 1 Happy Path (2xx) dan 2 Negative Path (4xx/400/404/422).
+3. Test Scenarios: Buat minimal 1 Happy Path (2xx/3xx) dan 2 Negative Path (4xx/5xx).
 4. Format: Hasilkan hanya kode TypeScript. Jangan ada penjelasan teks di luar blok kode.
 5. Variable Naming: Gunakan gaya camelCase. Nama tes harus deskriptif.
+6. Endpoint & Method: Gunakan HTTP method dan Endpoint Path persis seperti yang diberikan di text input. Jangan mengubah atau mengarang endpoint path sendiri. Gunakan path relatif (misal: /api/checkout) karena baseURL sudah diatur global.
+7. Handling Response: Pastikan ekspektasi HTTP status code persis dan akurat sesuai dengan kondisi test. Jika response berisiko bukan JSON (misalnya error 404 dari server HTML), berhati-hatilah saat memanggil \`response.json()\`. Pastikan parameter ajv memvalidasi error message jika tersedia.
 
 Input Swagger Snippet:
 JSON
@@ -119,7 +121,13 @@ import Ajv from 'ajv';
 async function generateAllTests() {
     for (const api of changedApis) {
         // Construct User Prompt
-        const userPrompt = `Generate a Playwright API test for this specific endpoint only:\nJSON\n${JSON.stringify(api.schemaSnippet, null, 2)}`;
+        const userPrompt = `Generate a Playwright API test for this specific endpoint only:
+HTTP Method: ${api.method.toUpperCase()}
+Endpoint Path: ${api.path}
+
+API Schema Snippet:
+JSON
+${JSON.stringify(api.schemaSnippet, null, 2)}`;
         
         console.log(`✨ Calling Gemini for: ${api.key}...`);
         

@@ -1,60 +1,64 @@
 import { test, expect } from '@playwright/test';
 import Ajv from 'ajv';
 
+const ajv = new Ajv({ allErrors: true, verbose: true });
+
 /**
  * Schema definition based on main.HealthResponse
- * Assuming standard health check structure as the full definition was not provided.
  */
 const healthResponseSchema = {
   type: 'object',
   properties: {
     status: { type: 'string' },
-    message: { type: 'string' },
     version: { type: 'string' },
     uptime: { type: 'number' }
   },
   required: ['status'],
-  additionalProperties: false
+  additionalProperties: true
 };
 
-const ajv = new Ajv();
-const validate = ajv.compile(healthResponseSchema);
-
-test.describe('Health Check API - GET /health', () => {
-  const endpoint = '/health';
-
-  test('should return 200 OK and valid schema on happy path', async ({ request }) => {
-    const response = await request.get(endpoint);
+test.describe('GET /api/health', () => {
+  
+  test('should return 200 OK and valid schema - Happy Path', async ({ request }) => {
+    const response = await request.get('/api/health');
     
-    // Assert status code
+    // Validate Status Code
     expect(response.status()).toBe(200);
 
     const responseBody = await response.json();
-
+    
     // Validate Schema using Ajv
+    const validate = ajv.compile(healthResponseSchema);
     const isValid = validate(responseBody);
+    
     if (!isValid) {
-      console.error('Schema Validation Errors:', validate.errors);
+      console.error('Ajv Validation Errors:', validate.errors);
     }
     
-    expect(isValid, 'Response body should match the JSON schema').toBe(true);
-    expect(responseBody.status).toBe('OK');
+    expect(isValid, 'Response schema should match the definition').toBe(true);
+    expect(responseBody.status).toBeDefined();
   });
 
-  test('should return 405 Method Not Allowed when using POST', async ({ request }) => {
-    const response = await request.post(endpoint, {
+  test('should return 405 Method Not Allowed when using POST - Negative Path', async ({ request }) => {
+    const response = await request.post('/api/health', {
       data: {}
     });
 
-    // Validating that the endpoint does not support POST if it's a GET-only health check
+    // Validating that the health endpoint does not accept POST method
     expect(response.status()).toBe(405);
   });
 
-  test('should return 404 Not Found for incorrect health endpoint path', async ({ request }) => {
-    const invalidEndpoint = '/health-check-invalid-path';
-    const response = await request.get(invalidEndpoint);
+  test('should return 404 Not Found for incorrect sub-resource - Negative Path', async ({ request }) => {
+    const response = await request.get('/api/health/undefined-route');
 
-    // Assert that misspelled or incorrect paths return 404
+    // Validating behavior for invalid extended path
     expect(response.status()).toBe(404);
+    
+    const contentType = response.headers()['content-type'];
+    if (contentType && contentType.includes('application/json')) {
+      const errorBody = await response.json();
+      expect(errorBody).toBeDefined();
+    }
   });
+
 });
