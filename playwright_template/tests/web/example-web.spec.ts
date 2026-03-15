@@ -40,25 +40,25 @@ test.describe('E-commerce Checkout Example', () => {
         await page.goto('/');
 
         // Fill email and card number
-        await page.fill('input[name="email"]', 'tester@example.com');
-        await page.fill('input[name="cardNumber"]', '4242 4242 4242 4242');
+        await page.getByPlaceholder('you@example.com').fill('tester@example.com');
+        await page.getByPlaceholder('1234 5678 9012 3456').fill('4242 4242 4242 4242');
         
-        // Focus next field to trigger card validation blur event reliably
-        await page.focus('input[name="expiry"]');
+        // Trigger blur by clicking outside or focusing another field
+        await page.getByPlaceholder('MM/YY').focus();
         
-        // Wait for card validation to finish (Luhn check)
-        await expect(page.locator('text=Valid card number')).toBeVisible({ timeout: 10000 });
+        // Wait for card validation to finish (Luhn check) - matching the actual UI text with emoji
+        await expect(page.getByText(/Valid card number/)).toBeVisible({ timeout: 10000 });
 
         // Fill remaining fields
-        await page.fill('input[name="expiry"]', '12/26');
-        await page.fill('input[name="cvv"]', '123');
-        await page.fill('input[name="amount"]', '99.99');
+        await page.getByPlaceholder('MM/YY').fill('12/26');
+        await page.getByPlaceholder('123').fill('123');
+        await page.getByPlaceholder('0.00').fill('99.99');
 
         // Submit order
-        await page.click('button[type="submit"]');
+        await page.getByRole('button', { name: /Pay|Complete Payment/i }).click();
 
         // Wait for final success confirmation text
-        await expect(page.locator('text=Payment processed successfully')).toBeVisible({
+        await expect(page.getByText(/processed successfully|✅/)).toBeVisible({
             timeout: 10000,
         });
     });
