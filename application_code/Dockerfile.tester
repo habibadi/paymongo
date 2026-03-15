@@ -17,7 +17,7 @@ RUN mkdir -p generated_test/test
 
 # Setup entrypoint to copy blueprint and run tests
 # This script will be overriden or used by CI to actually run tests
-COPY ./scripts/run-tests.sh /usr/local/bin/run-tests
+COPY ./application_code/scripts/run-tests.sh /usr/local/bin/run-tests
 RUN chmod +x /usr/local/bin/run-tests
 
 CMD ["run-tests"]
