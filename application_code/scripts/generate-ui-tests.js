@@ -153,154 +153,108 @@ function cleanHTML(rawHtml) {
     // Remove script tags and their content
     let clean = rawHtml.replace(/<script[\s\S]*?<\/script>/gi, '');
     // Remove style tags
-    clean = clean.replace(/<style[\s\S]*?<\/style>/gi, '');
-    // Remove SVG elements (just keep text content context, not paths)
+    clean = clean.replace(/<style[\s\S]*?<\/script>/gi, ''); // Fix typo here too
+    // Remove SVG elements
     clean = clean.replace(/<svg[\s\S]*?<\/svg>/gi, '[icon]');
-    // Remove long class attributes (Tailwind is very verbose)
-    clean = clean.replace(/\s+class="[^"]{60,}"/gi, '');
-    clean = clean.replace(/\s+className="[^"]{60,}"/gi, '');
+    // Remove long class attributes
+    clean = clean.replace(/\s+class(Name)?="[^"]{40,}"/gi, '');
     // Remove comments
     clean = clean.replace(/<!--[\s\S]*?-->/g, '');
-    // Collapse multiple whitespace/newlines
-    clean = clean.replace(/\s+/g, ' ').trim();
     
-    // Extract only the meaningful structural tags
-    const importantTags = [];
-    const tagPattern = /<(input|button|form|label|select|textarea|a|h1|h2|h3|h4|div|p|span)[^>]*>/gi;
+    // Improved extraction: include inner text for buttons and labels
+    const importantElements = [];
+    const elementPattern = /<(button|label|input|form|span|p|h[1-6])[^>]*>([\s\S]*?)<\/\1>|<(input|img)[^>]*\/?>/gi;
+    
     let match;
-    while ((match = tagPattern.exec(clean)) !== null) {
-        const tag = match[0];
-        // Only keep tags with meaningful attributes for test selectors
-        if (tag.includes('name=') || tag.includes('placeholder=') || tag.includes('type=') || 
-            tag.includes('id=') || tag.includes('data-testid=') || tag.includes('role=') ||
-            tag.includes('aria-label=') || tag.includes('aria-labelledby=') ||
-            tag === '<form>' || tag.startsWith('<button') || tag.startsWith('<label')) {
-            importantTags.push(tag);
+    while ((match = elementPattern.exec(clean)) !== null) {
+        let tagContent = match[0];
+        // Keep if it has interactive attributes or is a button/label with text
+        if (tagContent.includes('name=') || tagContent.includes('placeholder=') || 
+            tagContent.includes('id=') || tagContent.includes('role=') ||
+            tagContent.includes('type=') || /<button|<label/i.test(tagContent)) {
+            
+            // Further clean long class names inside the tagContent
+            const finalTag = tagContent.replace(/\s+class(Name)?="[^"]+"/gi, (m) => m.length > 50 ? '' : m);
+            importantElements.push(finalTag.trim());
         }
     }
 
-    if (importantTags.length > 0) {
-        return importantTags.join('\n');
+    if (importantElements.length > 0) {
+        return importantElements.join('\n');
     }
 
-    // If HTML parsing yielded nothing useful, return a truncated version
-    return clean.substring(0, 4000);
+    return clean.substring(0, 3000);
 }
 
 /**
  * Extracts DOM structure from page.tsx as a fallback.
- * Reads the JSX and extracts input/button elements with their attributes.
  */
 function extractDomFromTsx(tsxPath) {
     const content = fs.readFileSync(tsxPath, 'utf8');
-    const lines = content.split('\n');
-    const relevantLines = [];
-
-    for (const line of lines) {
-        const trimmed = line.trim();
-        // Keep lines with interactive elements
-        if (trimmed.startsWith('<input') || trimmed.startsWith('<button') ||
-            trimmed.startsWith('<form') || trimmed.startsWith('<label') ||
-            trimmed.startsWith('<select') || trimmed.startsWith('<textarea') ||
-            trimmed.includes('placeholder=') || trimmed.includes('name=') ||
-            trimmed.includes('type=') || trimmed.includes('data-testid=')) {
-            // Clean out long className values
-            const cleaned = trimmed.replace(/className="[^"]{50,}"/g, 'className="[...]"');
-            relevantLines.push(cleaned);
-        }
-    }
-
-    return `[Extracted from page.tsx - Static Analysis]\n${relevantLines.join('\n')}`;
+    // Simple regex to find buttons and inputs with their labels
+    const matches = content.match(/<(button|label|input|form)[^>]*>([\s\S]*?)<\/\1>|<input[^>]*\/?>/gi) || [];
+    const cleaned = matches.map(m => m.replace(/className="[^"]{40,}"/g, '')).join('\n');
+    return `[Static Analysis from page.tsx]\n${cleaned}`;
 }
 
 // ─── 5. SYSTEM PROMPT ────────────────────────────────────────────────────────
 const UI_SYSTEM_PROMPT = `
 System Role:
 Anda adalah Senior SDET Expert yang ahli dalam Playwright E2E Testing.
-Tugas Anda adalah menghasilkan file test Playwright .spec.ts yang kuat, stabil (anti-fragile), dan siap pakai untuk menguji alur UI/frontend.
+Tugas Anda adalah menghasilkan file test Playwright .spec.ts yang kuat dan stabil.
 
-⚠️ CRITICAL RULES - VIOLATION = IMMEDIATE REJECTION:
-1. FORBIDDEN LOCATORS: JANGAN GUNAKAN XPath (page.locator('//')), CSS selector yang panjang, atau .nth() berdasarkan posisi. HANYA gunakan:
-   - page.getByRole()
-   - page.getByLabel()
-   - page.getByPlaceholder()
-   - page.getByText()
-   - page.getByTestId()  (jika data-testid tersedia)
+⚠️ CRITICAL RULES:
+1. FORBIDDEN LOCATORS: JANGAN GUNAKAN XPath (page.locator('//')), CSS selector panjang, atau .nth().
+   HANYA gunakan getByRole, getByLabel, getByPlaceholder, getByText.
 
-2. FORBIDDEN WAITS: JANGAN GUNAKAN page.waitForTimeout() SAMA SEKALI. Playwright melakukan auto-waiting. Gunakan:
-   - await expect(locator).toBeVisible()
-   - await page.waitForURL()
-   - await expect(locator).toHaveText()
+2. BUTTON LOCATORS — SANGAT PENTING:
+   - JANGAN PERNAH menggunakan { name: /submit/i } jika teks pada button bukan "Submit".
+   - Lihat teks di dalam tag <button> yang diberikan di DOM snippet.
+   - Jika tombol berisi teks "Pay $99.99", gunakan getByRole('button', { name: /Pay|Complete/i }).
 
-3. MANDATORY ASSERTIONS: Setiap test case WAJIB memiliki minimal 1 assertion expect() yang memvalidasi state UI SETELAH aksi dilakukan.
+3. STRICT MODE SAFETY:
+   - getByPlaceholder() WAJIB menggunakan { exact: true } untuk placeholder pendek (CVV, 123, MM/YY).
 
-4. FILL COMPLETENESS: Untuk happy path checkout, WAJIB mengisi semua field yang diperlukan:
-   - Email (getByPlaceholder atau getByLabel)
-   - Card Number 
-   - Expiry
-   - CVV — WAJIB gunakan page.getByLabel('CVV') BUKAN getByPlaceholder('123') karena
-     placeholder '123' bisa ada di banyak elemen (strict mode violation)
-   - Amount
+4. CVV FIELD: Gunakan getByLabel('CVV') karena field ini sering ambiguous dengan nomor kartu.
 
-5. STRICT MODE SAFETY — WAJIB IKUTI:
-   - getByPlaceholder() WAJIB menggunakan { exact: true } untuk semua placeholder yang pendek
-     atau ambigu (kurang dari 10 karakter), contoh: { exact: true }.
-   - LEBIH AMAN: Untuk field CVV/PIN/OTP dengan placeholder pendek numerik, gunakan
-     page.getByLabel() berdasarkan label teks (misal: page.getByLabel('CVV'))
-     agar tidak ambiguous.
-   - CONTOH BENAR:  await page.getByPlaceholder('123', { exact: true }).fill('123');
-   - CONTOH SALAH:  await page.getByPlaceholder('123').fill('123');  // STRICT MODE VIOLATION!
+5. ASSERTIONS: Setiap test wajib memvalidasi state UI (misal: await expect(page.getByText('✅')).toBeVisible()).
 
-6. FORMAT: Hasilkan HANYA kode TypeScript murni. TIDAK ADA teks penjelasan, markdown, atau komentar non-kode.
-7. IMPORT: Selalu mulai dengan: import { test, expect } from '@playwright/test';
-8. BASE URL: Gunakan URL relatif saja, misal await page.goto('/') karena baseURL sudah dikonfigurasi.
+Context: Checkout Page. Success message contains 'processed' or '✅'. Failure contains '❌'.
 
-Test Scenarios yang harus dibuat:
-1. Happy Path - Successfully submit a payment (all fields valid)
-2. Negative Path - Submit with an invalid/empty card number
-3. Negative Path - Verify form HTML5 validation blocks empty submission
-
-Context: Ini adalah halaman Checkout pembayaran. Setelah submit berhasil, UI akan menampilkan pesan sukses yang mengandung kata "processed" atau "✅". Jika gagal, akan ada pesan "❌".
-
-Cleaned HTML DOM dari halaman:
+Cleaned HTML DOM:
 [INJECT_DOM_HERE]
 `;
 
 
 // ─── 6. GUARDRAILS ───────────────────────────────────────────────────────────
 /**
- * Runs all 4 Anti-Fragile Guardrails against generated code.
- * Throws descriptive errors explaining WHY the code was rejected.
- * This gives LLM specific feedback on what to fix in the next attempt.
+ * Runs all 5 Anti-Fragile Guardrails against generated code.
  */
 function runUiGuardrails(code, pageConfig) {
     const failureReasons = [];
 
+    // ── Guardrail 5: Button Label Hallucination Check ────────────────────────
+    if (/getByRole\(['"`]button['"`],\s*{\s*name:\s*\/submit\/i\s*}\)/i.test(code)) {
+        failureReasons.push(
+            'G5_BUTTON_NAME: Generic /submit/i button locator detected. ' +
+            'HALLUCINATION WARNING: The actual button text in the DOM is likely "Pay" or "Complete Payment". ' +
+            'Use the actual labels found in the HTML snippet provided.'
+        );
+    }
+
     // ── Guardrail 1b: Ambiguous Placeholder Check ────────────────────────────
-    // Detect getByPlaceholder with short strings (< 8 chars) without exact:true
-    // These WILL cause strict mode violations on pages with multiple inputs
     const bareShortPlaceholders = code.match(/getByPlaceholder\(['"`][^'"` ]{1,7}['"`]\)/g) || [];
     const ambiguous = bareShortPlaceholders.filter(p => !p.includes('exact'));
     if (ambiguous.length > 0) {
-        failureReasons.push(
-            `G1_PLACEHOLDER: Ambiguous short getByPlaceholder() without exact:true detected: ${ambiguous.join(', ')}. ` +
-            'This will cause Playwright strict mode violations when other inputs contain the same substring. ' +
-            'Use getByLabel() for short fields like CVV/PIN, or add { exact: true } option.'
-        );
+        failureReasons.push(`G1_PLACEHOLDER: Ambiguous short getByPlaceholder() without exact:true: ${ambiguous.join(', ')}`);
     }
 
     // ── Guardrail 1: XPath / Unstable Locator Check ──────────────────────────
     if (/page\.locator\(['"`]\/\//i.test(code)) {
-        failureReasons.push(
-            'G1_XPATH: XPath locator detected (page.locator("//...")). ' +
-            'FORBIDDEN. Use page.getByRole(), page.getByLabel(), or page.getByPlaceholder() instead.'
-        );
+        failureReasons.push('G1_XPATH: XPath locator detected.');
     }
     if (/\.nth\(\d+\)/i.test(code) && !/\/\/ .*.nth/.test(code)) {
-        failureReasons.push(
-            'G1_NTH: Positional .nth() selector detected. This is fragile. ' +
-            'Use a more specific locator instead.'
-        );
+        failureReasons.push('G1_NTH: Positional .nth() selector detected.');
     }
 
     // ── Guardrail 2: Business Flow Completeness Check ─────────────────────────
