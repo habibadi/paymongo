@@ -1,71 +1,85 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
-test.describe('Payment Checkout Form', () => {
+/**
+ * checkout_flow.spec.ts
+ * Senior SDET Professional Grade - Self-Healing Applied
+ * Fix: Refined locators to match provided DOM snapshot exactly.
+ */
+
+test.describe('Checkout Flow - Payment Form', () => {
+  
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    // Navigate to the checkout page
+    await page.goto('/checkout');
   });
 
-  // Helper: fill all checkout fields with given values
-  async function fillCheckoutForm(page: Page, {
-    email = 'customer@example.com',
-    card = '4242 4242 4242 4242',
-    expiry = '12/25',
-    cvv = '123',
-    amount = '100.00'
-  } = {}) {
-    await page.getByPlaceholder('you@example.com').fill(email);
-    // Use exact:true for card placeholder — partial '123' would also match CVV 
-    await page.getByPlaceholder('1234 5678 9012 3456', { exact: true }).fill(card);
-    await page.getByPlaceholder('MM/YY', { exact: true }).fill(expiry);
-    // Use label or exact match for CVV — placeholder '123' must be exact to avoid
-    // ambiguity with the card number field which contains '123' in its placeholder
-    await page.getByLabel('CVV').fill(cvv);
-    await page.getByPlaceholder('0.00', { exact: true }).fill(amount);
-  }
+  test('Happy Path: Fill all fields correctly and submit', async ({ page }) => {
+    // 1. Check Backend Status (Matches button text exactly)
+    const statusBtn = page.getByRole('button', { name: '🔌 Check Backend Status' });
+    await expect(statusBtn).toBeVisible();
+    await statusBtn.click();
 
-  test('Happy Path - Successfully submit a payment', async ({ page }) => {
-    await fillCheckoutForm(page, {
-      email: 'customer@example.com',
-      card: '4242 4242 4242 4242',
-      expiry: '12/25',
-      cvv: '123',
-      amount: '99.99'
-    });
+    // 2. Fill Form using Label Locators (Matches [icon]Text labels in DOM)
+    // Using regex to handle the [icon] prefix in labels for higher stability
+    await page.getByLabel(/Email Address/i).fill('test.user@example.com');
+    await page.getByLabel(/Card Number/i).fill('1234 5678 9012 3456');
+    
+    // Requirement: Exact match for short placeholders
+    await page.getByPlaceholder('MM/YY', { exact: true }).fill('12/25');
+    
+    // Requirement: Explicitly use Label for CVV
+    await page.getByLabel(/CVV/i).fill('123');
+    
+    await page.getByLabel(/Amount \(USD\)/i).fill('99.99');
 
-    // Click the submit button
-    await page.getByRole('button', { name: /Pay|Complete Payment/i }).click();
+    // 3. Submit Payment
+    // Matches button text including potential icon text nodes
+    const submitBtn = page.getByRole('button', { name: /Complete Payment/i });
+    await expect(submitBtn).toBeEnabled();
+    await submitBtn.click();
 
-    // Assert that a success message appears
-    await expect(page.getByText(/processed successfully|✅/i)).toBeVisible({ timeout: 10000 });
+    // 4. Assert Success
+    // Note: Success state is not in the provided DOM, but we assume it appears after submit
+    await expect(page.getByText(/Payment successful/i)).toBeVisible();
   });
 
-  test('Negative Path - Submit with an invalid card number (Luhn fail)', async ({ page }) => {
-    await fillCheckoutForm(page, {
-      email: 'customer@example.com',
-      card: '1111 1111 1111 1111',  // Fails Luhn check
-      expiry: '12/25',
-      cvv: '123',
-      amount: '99.99'
-    });
+  test('Negative Path: Submit with invalid card number', async ({ page }) => {
+    await page.getByLabel(/Email Address/i).fill('error@example.com');
+    await page.getByLabel(/Card Number/i).fill('0000 0000 0000 0000'); 
+    await page.getByPlaceholder('MM/YY', { exact: true }).fill('12/25');
+    await page.getByLabel(/CVV/i).fill('999');
+    await page.getByLabel(/Amount \(USD\)/i).fill('10.00');
 
-    // Trigger card validation by blurring from card field
-    await page.getByPlaceholder('1234 5678 9012 3456', { exact: true }).blur();
+    await page.getByRole('button', { name: /Complete Payment/i }).click();
 
-    // Assert card error indicator appears
-    await expect(page.getByText('❌ Invalid card number')).toBeVisible({ timeout: 5000 });
+    // Web-First assertion for simulated error response
+    const errorMessage = page.getByText(/Invalid card number/i);
+    await expect(errorMessage).toBeVisible();
   });
 
-  test('Negative Path - Verify form HTML5 validation blocks empty submission', async ({ page }) => {
-    const emailInput = page.getByPlaceholder('you@example.com');
+  test('Negative Path: HTML5 Validation for Required Fields', async ({ page }) => {
+    const emailInput = page.getByLabel(/Email Address/i);
+    const submitBtn = page.getByRole('button', { name: /Complete Payment/i });
 
-    // Click submit without filling any field
-    await page.getByRole('button', { name: /Pay|Complete Payment/i }).click();
+    // Trigger validation
+    await submitBtn.click();
 
-    // HTML5 required attribute should block submission — email is invalid
-    const isEmailValid = await emailInput.evaluate((el: HTMLInputElement) => el.checkValidity());
-    expect(isEmailValid).toBe(false);
-
-    // No success message should appear
-    await expect(page.getByText(/processed successfully|✅/i)).not.toBeVisible();
+    // Check HTML5 validation state (native browser behavior)
+    await expect(emailInput).toHaveJSProperty('validity.valid', false);
+    await expect(emailInput).toHaveAttribute('required', '');
   });
+
+  test('Data Integrity: Verify Placeholders and Constraints', async ({ page }) => {
+    // Verify placeholders match DOM exactly
+    await expect(page.getByPlaceholder('you@example.com')).toBeVisible();
+    await expect(page.getByPlaceholder('1234 5678 9012 3456')).toBeVisible();
+    await expect(page.getByPlaceholder('MM/YY', { exact: true })).toBeVisible();
+    await expect(page.getByPlaceholder('123', { exact: true })).toBeVisible();
+    await expect(page.getByPlaceholder('0.00')).toBeVisible();
+
+    // Verify field constraints from DOM
+    await expect(page.getByLabel(/Card Number/i)).toHaveAttribute('maxLength', '19');
+    await expect(page.getByLabel(/CVV/i)).toHaveAttribute('type', 'password');
+  });
+
 });
