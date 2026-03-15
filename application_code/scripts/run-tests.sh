@@ -6,13 +6,17 @@
 echo "🚀 Setting up test environment..."
 
 # 1. Sync Blueprint to generated_test folder
-# We copy config and utils from the blueprint to ensure consistency
+mkdir -p /test-runner/generated_test/tests
 cp -r /test-runner/blueprint/config /test-runner/generated_test/
 cp -r /test-runner/blueprint/utils /test-runner/generated_test/
 cp /test-runner/blueprint/playwright.config.ts /test-runner/generated_test/
 cp /test-runner/blueprint/package.json /test-runner/generated_test/
 
-# 2. Install dependencies (should be fast due to image pre-warming)
+# 2. Create a dummy .env file so playwright.config.ts doesn't fail loading it
+# Environment variables from docker-compose will still take precedence if configured correctly
+touch /test-runner/generated_test/.env
+
+# 3. Install dependencies
 cd /test-runner/generated_test
 npm install
 

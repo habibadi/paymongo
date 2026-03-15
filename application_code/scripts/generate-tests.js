@@ -24,7 +24,7 @@ setTimeout(() => {
 
     // 3. Syncing Blueprint Tests as "generated" results (for simulation)
     const sourceDir = path.resolve(__dirname, '../../playwright_template/tests');
-    const targetDir = path.resolve(__dirname, '../generated_test/test');
+    const targetDir = path.resolve(__dirname, '../generated_test/tests');
 
     if (!fs.existsSync(targetDir)) {
         fs.mkdirSync(targetDir, { recursive: true });
