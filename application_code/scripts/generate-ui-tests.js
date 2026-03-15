@@ -238,12 +238,22 @@ Tugas Anda adalah menghasilkan file test Playwright .spec.ts yang kuat, stabil (
    - Email (getByPlaceholder atau getByLabel)
    - Card Number 
    - Expiry
-   - CVV
+   - CVV — WAJIB gunakan page.getByLabel('CVV') BUKAN getByPlaceholder('123') karena
+     placeholder '123' bisa ada di banyak elemen (strict mode violation)
    - Amount
 
-5. FORMAT: Hasilkan HANYA kode TypeScript murni. TIDAK ADA teks penjelasan, markdown, atau komentar non-kode.
-6. IMPORT: Selalu mulai dengan: import { test, expect } from '@playwright/test';
-7. BASE URL: Gunakan URL relatif saja, misal await page.goto('/') karena baseURL sudah dikonfigurasi.
+5. STRICT MODE SAFETY — WAJIB IKUTI:
+   - getByPlaceholder() WAJIB menggunakan { exact: true } untuk semua placeholder yang pendek
+     atau ambigu (kurang dari 10 karakter), contoh: { exact: true }.
+   - LEBIH AMAN: Untuk field CVV/PIN/OTP dengan placeholder pendek numerik, gunakan
+     page.getByLabel() berdasarkan label teks (misal: page.getByLabel('CVV'))
+     agar tidak ambiguous.
+   - CONTOH BENAR:  await page.getByPlaceholder('123', { exact: true }).fill('123');
+   - CONTOH SALAH:  await page.getByPlaceholder('123').fill('123');  // STRICT MODE VIOLATION!
+
+6. FORMAT: Hasilkan HANYA kode TypeScript murni. TIDAK ADA teks penjelasan, markdown, atau komentar non-kode.
+7. IMPORT: Selalu mulai dengan: import { test, expect } from '@playwright/test';
+8. BASE URL: Gunakan URL relatif saja, misal await page.goto('/') karena baseURL sudah dikonfigurasi.
 
 Test Scenarios yang harus dibuat:
 1. Happy Path - Successfully submit a payment (all fields valid)
@@ -256,6 +266,7 @@ Cleaned HTML DOM dari halaman:
 [INJECT_DOM_HERE]
 `;
 
+
 // ─── 6. GUARDRAILS ───────────────────────────────────────────────────────────
 /**
  * Runs all 4 Anti-Fragile Guardrails against generated code.
@@ -264,6 +275,19 @@ Cleaned HTML DOM dari halaman:
  */
 function runUiGuardrails(code, pageConfig) {
     const failureReasons = [];
+
+    // ── Guardrail 1b: Ambiguous Placeholder Check ────────────────────────────
+    // Detect getByPlaceholder with short strings (< 8 chars) without exact:true
+    // These WILL cause strict mode violations on pages with multiple inputs
+    const bareShortPlaceholders = code.match(/getByPlaceholder\(['"`][^'"` ]{1,7}['"`]\)/g) || [];
+    const ambiguous = bareShortPlaceholders.filter(p => !p.includes('exact'));
+    if (ambiguous.length > 0) {
+        failureReasons.push(
+            `G1_PLACEHOLDER: Ambiguous short getByPlaceholder() without exact:true detected: ${ambiguous.join(', ')}. ` +
+            'This will cause Playwright strict mode violations when other inputs contain the same substring. ' +
+            'Use getByLabel() for short fields like CVV/PIN, or add { exact: true } option.'
+        );
+    }
 
     // ── Guardrail 1: XPath / Unstable Locator Check ──────────────────────────
     if (/page\.locator\(['"`]\/\//i.test(code)) {
