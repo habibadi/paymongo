@@ -32,7 +32,7 @@ test.describe('Payment Checkout Form', () => {
       amount: '99.99'
     });
 
-    // Click the submit button (the last button in the form)
+    // Click the submit button
     await page.getByRole('button', { name: /Pay|Complete Payment/i }).click();
 
     // Assert that a success message appears
