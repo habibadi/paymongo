@@ -1,0 +1,6 @@
+{
+  "POST /api/checkout": "5f9e81d32d15f8115f614907c177d48814aae99d3f58db8344b8599007e3b896",
+  "GET /api/health": "ecfbca7763694c8f3e43ee7527d0525c2ae510c2b7b734637afd2c4feb210098",
+  "POST /api/validate-card": "bef83127d99ac151c3f5cc1d99ca4146b65faae31b30b86cdf7ac1f1e1048edc",
+  "POST /api/validate-email": "bf7bb23f0f5c85e4d43df4f9d550b11381746df30aa0909c0fb57fe6ca363f9b"
+}
