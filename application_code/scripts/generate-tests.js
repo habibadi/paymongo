@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { execSync } = require('child_process');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
 
 console.log("🤖 AI Test Generator starting...");
@@ -13,6 +14,14 @@ if (!apiKey) {
     process.exit(1);
 }
 console.log("✅ Secret handling verified: GEMINI_API_KEY is present.");
+
+// Initialize Gemini
+const genAI = new GoogleGenerativeAI(apiKey);
+// Using gemini-3-flash-preview as per user priority testing
+const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+
+// Helper for rate limiting (Free tier)
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // 2. Helper to filter only schema-relevant parts for hashing
 function getComparableSchema(config) {
@@ -107,53 +116,61 @@ import Ajv from 'ajv';
 // ... kode tes ...
 `;
 
-setTimeout(() => {
-    changedApis.forEach(api => {
+async function generateAllTests() {
+    for (const api of changedApis) {
         // Construct User Prompt
         const userPrompt = `Generate a Playwright API test for this specific endpoint only:\nJSON\n${JSON.stringify(api.schemaSnippet, null, 2)}`;
         
-        console.log(`✨ Gemini processing: ${api.key}`);
+        console.log(`✨ Calling Gemini for: ${api.key}...`);
         
-        // Sanitize filename
-        const safePath = api.path.replace(/\//g, '_').replace(/^_/, '');
-        const filename = `${api.method.toLowerCase()}_${safePath}.spec.ts`;
-        const filePath = path.join(targetApiDir, filename);
-
-        // MOCK: Generate individual file content based on blueprint structure
-        const mockContent = `import { test, expect } from '@playwright/test';
-// MOCK AJV IMPORT
-// import Ajv from 'ajv';
-
-test.describe('API Endpoint: ${api.key}', () => {
-    test('should handle ${api.key} - Happy Path', async ({ request }) => {
-        // Auto-generated generated test for ${api.key}
-        const res = await request.${api.method.toLowerCase()}('${api.path}');
-        expect(res.status()).toBeLessThan(500);
-    });
-});
-`;
-        fs.writeFileSync(filePath, mockContent);
-        console.log(`  📝 Created: tests/api/${filename}`);
-
-        // 5. Linting Guardrail
-        console.log(`  🛡️ Running Linting Guardrail on ${filename}...`);
         try {
-            // Point to the template's eslint config
-            const eslintConfig = path.resolve(__dirname, '../../playwright_template/.eslintrc.js');
-            // Use npx eslint with specific config
-            // We use -c to specify config and --no-ignore to ensure it checks the file
-            execSync(`npx eslint -c "${eslintConfig}" "${filePath}"`, { stdio: 'pipe' });
-            console.log(`  ✅ Linting passed for ${filename}`);
+            // Add a large delay to handle Free Tier RPM limits (Quota is tight)
+            await delay(60000); 
+            const result = await model.generateContent([SYSTEM_PROMPT, userPrompt]);
+            const response = await result.response;
+            let text = response.text();
+
+            // Guardrail: Extract code from markdown if present
+            if (text.includes('```typescript')) {
+                text = text.split('```typescript')[1].split('```')[0].trim();
+            } else if (text.includes('```ts')) {
+                text = text.split('```ts')[1].split('```')[0].trim();
+            } else if (text.includes('```')) {
+                text = text.split('```')[1].split('```')[0].trim();
+            }
+
+            // Sanitize filename
+            const safePath = api.path.replace(/\//g, '_').replace(/^_/, '');
+            const filename = `${api.method.toLowerCase()}_${safePath}.spec.ts`;
+            const filePath = path.join(targetApiDir, filename);
+
+            fs.writeFileSync(filePath, text);
+            console.log(`  📝 Saved: tests/api/${filename}`);
+
+            // 5. Linting Guardrail
+            console.log(`  🛡️ Running Linting Guardrail on ${filename}...`);
+            try {
+                const eslintConfig = path.resolve(__dirname, '../../playwright_template/.eslintrc.js');
+                execSync(`npx eslint -c "${eslintConfig}" "${filePath}"`, { stdio: 'pipe' });
+                console.log(`  ✅ Linting passed for ${filename}`);
+            } catch (error) {
+                console.error(`  ❌ Linting failed for ${filename}! Rejecting AI output.`);
+                fs.unlinkSync(filePath); 
+            }
         } catch (error) {
-            console.error(`  ❌ Linting failed for ${filename}! Rejecting AI output.`);
-            // console.error(error.stdout.toString()); // Log the actual lint errors
-            fs.unlinkSync(filePath); // Delete the invalid file
+            console.error(`  ❌ Gemini API failed for ${api.key}:`, error.message);
         }
-    });
+    }
 
     // Save state after successful generation
     fs.writeFileSync(cachePath, JSON.stringify(currentHashes, null, 2));
     console.log("\n💾 Saved current API state to cache.");
-
     console.log("✅ AI Test Generation completed successfully.");
-}, 1500);
+}
+
+// Execute the async flow
+if (changedApis.length > 0) {
+    generateAllTests();
+} else {
+    console.log("✅ No changes detected. Nothing to generate.");
+}
