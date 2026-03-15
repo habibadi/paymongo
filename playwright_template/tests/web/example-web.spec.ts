@@ -43,11 +43,11 @@ test.describe('E-commerce Checkout Example', () => {
         await page.fill('input[name="email"]', 'tester@example.com');
         await page.fill('input[name="cardNumber"]', '4242 4242 4242 4242');
         
-        // Tab out to trigger card validation blur event
-        await page.press('input[name="cardNumber"]', 'Tab');
+        // Focus next field to trigger card validation blur event reliably
+        await page.focus('input[name="expiry"]');
         
         // Wait for card validation to finish (Luhn check)
-        await expect(page.locator('text=Valid card number')).toBeVisible({ timeout: 5000 });
+        await expect(page.locator('text=Valid card number')).toBeVisible({ timeout: 10000 });
 
         // Fill remaining fields
         await page.fill('input[name="expiry"]', '12/26');

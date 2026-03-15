@@ -67,6 +67,8 @@ export default function CheckoutPage() {
     }
   };
 
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
   // XHR/Async email validation on blur
   const handleEmailBlur = async () => {
     if (!formData.email) return;
@@ -75,7 +77,7 @@ export default function CheckoutPage() {
     setEmailWarning("");
     
     try {
-      const res = await fetch('http://localhost:8080/api/validate-email', {
+      const res = await fetch(`${API_BASE_URL}/api/validate-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email }),
@@ -111,7 +113,7 @@ export default function CheckoutPage() {
     setCardMessage("");
     
     try {
-      const res = await fetch('http://localhost:8080/api/validate-card', {
+      const res = await fetch(`${API_BASE_URL}/api/validate-card`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cardNumber: formData.cardNumber }),
@@ -148,7 +150,7 @@ export default function CheckoutPage() {
 
     // Process payment
     try {
-      const res = await fetch('http://localhost:8080/api/checkout', {
+      const res = await fetch(`${API_BASE_URL}/api/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -175,7 +177,7 @@ export default function CheckoutPage() {
 
   const checkHealth = async () => {
     try {
-      const res = await fetch('http://localhost:8080/api/health');
+      const res = await fetch(`${API_BASE_URL}/api/health`);
       const data = await res.json();
       setMessage(`🟢 Backend Status: ${data.status} - ${data.message}`);
     } catch (err) {
