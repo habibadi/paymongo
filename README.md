@@ -48,7 +48,8 @@ If a generated test fails its **Trial Run**:
 
 ---
 
-## ⚙️ CI/CD Quality Gate (GitHub Actions)
+### 📊 CI/CD Notification Example
+![Discord Notification](discord.png)
 
 The pipeline (`.github/workflows/ai-test-gen.yml`) ensures no broken code reaches production:
 1.  **Secret Injection**: `GEMINI_API_KEY` is securely injected from Repository Secrets.
