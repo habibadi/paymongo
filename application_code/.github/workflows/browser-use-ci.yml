@@ -1,0 +1,62 @@
+name: AI UI E2E Test Generator (Browser-Use Open Source)
+
+on:
+  push:
+    paths:
+      - 'app/page.tsx' # Only trigger when UI source code changes
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  generate-tests:
+    name: Generate E2E Tests via Browser-Use
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build Test Generator Docker Image
+        run: docker build -t browser-use-generator -f Dockerfile.test-generator .
+
+      - name: Start Staging Service
+        # Assuming you have a docker-compose or similar to bring up localhost:3000
+        run: |
+          npm ci
+          npm run build
+          npm start &
+          sleep 10 # Wait for app to be ready
+
+      - name: Run Browser-Use Test Generator (Docker)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          STAGING_BASE_URL: http://localhost:3000
+        run: |
+          docker run --rm \
+            -e GEMINI_API_KEY=$GEMINI_API_KEY \
+            -e STAGING_BASE_URL=$STAGING_BASE_URL \
+            -e HEADLESS=true \
+            --network host \
+            -v ${{ github.workspace }}:/app \
+            browser-use-generator
+
+      - name: Display Generated Specs
+        run: cat generated_test/tests/web/checkout_flow_bu.spec.ts || echo "No test generated"
+
+      - name: Install Playwright Node Dependencies
+        run: |
+          cd playwright_template || true
+          npm ci
+          npx playwright install chromium
+
+      - name: Run Trial Execution
+        run: |
+          npx playwright test "generated_test/tests/web/checkout_flow_bu.spec.ts" --config="playwright_template/playwright.config.ts" --project=chromium
+
+      - name: Commit and Push Generated Tests
+        if: success()
+        run: |
+          git config --global user.name "AI Test Agent"
+          git config --global user.email "bot@example.com"
+          git add generated_test/tests/web/
+          git commit -m "chore: Auto-generate E2E UI Tests via Browser-Use AI" || echo "No changes to commit"
+          git push

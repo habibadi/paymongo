@@ -1,0 +1,63 @@
+services:
+  # Go Backend API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Next.js Frontend
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+      args:
+        - NEXT_PUBLIC_API_URL=http://api:8080
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://api:8080
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Browser-Use AI Test Generator
+  test-generator:
+    build:
+      context: .
+      dockerfile: Dockerfile.test-generator
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - STAGING_BASE_URL=http://ui:3000
+      - HEADLESS=true
+      - ANONYMIZED_TELEMETRY=false
+    volumes:
+      - ./generated_test:/app/generated_test
+    depends_on:
+      ui:
+        condition: service_healthy
+
+  # Final Test Executor (Playwright)
+  tester:
+    build:
+      context: ..
+      dockerfile: application_code/Dockerfile.tester
+    environment:
+      - STAGING_BASE_URL=http://ui:3000
+      - STAGING_API_URL=http://api:8080
+    volumes:
+      - ./generated_test:/test-runner/generated_test
+    depends_on:
+      test-generator:
+        condition: service_completed_successfully

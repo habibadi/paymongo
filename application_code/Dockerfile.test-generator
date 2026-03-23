@@ -1,0 +1,24 @@
+FROM mcr.microsoft.com/playwright/python:latest
+
+# Set working directory inside the container
+WORKDIR /app
+
+# Copy the requirements file
+COPY scripts/requirements-browser-use.txt .
+
+# Install dependencies (browser-use, langchain, dotenv, etc)
+RUN pip install --no-cache-dir -r requirements-browser-use.txt
+
+# Playwright Python image usually comes with browsers installed, 
+# but it's safe to ensure Chromium is specifically installed for browser-use.
+RUN playwright install chromium
+
+# Copy the application code
+COPY . .
+
+# Set default env vars for the headless execution
+ENV HEADLESS=true
+ENV CI=true
+
+# Command to execute the Python AI Test Generator
+CMD ["python", "scripts/generate_ui_tests.py"]

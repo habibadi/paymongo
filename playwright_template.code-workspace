@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "playwright_template"
+		},
+		{
+			"path": "application_code"
+		}
+	],
+	"settings": {}
+}

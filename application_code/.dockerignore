@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+generated_test/
+test-results/
+playwright-report/
+.cache/
+*.log
+.git/
+.github/
+.vscode/
+.env
+Dockerfile*
+docker-compose.yml

@@ -1,0 +1,12 @@
+node_modules/
+application_code/node_modules/
+playwright_template/node_modules/
+application_code/.next/
+playwright_template/test-results/
+playwright_template/playwright-report/
+application_code/generated_test/
+.git/
+.github/
+.vscode/
+*.log
+.env

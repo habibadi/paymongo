@@ -1,101 +1,37 @@
-# AI-Driven SDET Test Generation Pipeline (V2) 🚀🛡️
+# AI-Driven SDET Quality Gate (Playwright + Gemini + Browser-Use)
 
-This repository contains an enterprise-grade automated pipeline for **Programmatic LLM-Based Test Generation** and execution. It covers both **API (Rest)** and **E2E (UI)** testing using Gemini AI and Playwright.
+Proyek ini adalah prototipe sistem **Continuous Integration (CI) cerdas** yang berfungsi sebagai *Quality Gate* untuk Backend (API) dan Frontend (UI). Sistem menggunakan kecerdasan buatan (Google Gemini) dan agen navigasi otonom (`browser-use`) untuk merancang skenario pengujian E2E *(End-to-End)* secara otomatis berdasarkan keadaan aplikasi saat ini, mengeksekusi tes, dan memverifikasi interaksinya.
 
----
+## 🔥 Fitur Utama
 
-## 🏛️ Architecture Overview
+- **Autonomous UI Explorer** (`browser-use`): Generator Python akan mengendarai browser layaknya pengguna sungguhan, menjelajahi aplikasi Next.js Anda (tanpa perlu mendefinisikan *selector* manual), dan merekam setiap *state* halaman.
+- **LLM Test Code Generator** (`gemini-3-flash-preview`): Log interaksi agen diterjemahkan secara otomatis menjadi script `*.spec.ts` murni menggunakan framework Playwright. 
+- **Auto-Healing Locators**: Script yang di-*generate* menggunakan pola `page.getByRole().or(page.locator("X_PATH"))`. Locator utama akan memakai *Web-First Assertions* yang divalidasi Gemini, sementara locator *fallback* mengambil koordinat DOM presisi dari memori Agen (*JSON Extract*). Ini membuat UI test Anda kebal terhadap "flaky failures" akibat refactor CSS/Class.
+- **Zero-Config Workflow**: Tes dihasilkan secara on-the-fly (`generated_test/`) dan tidak mengotori repositori kode inti (*blueprint*).
 
-The system treats AI as a **pipeline component**, not just a manual helper. It follows a **"Detect -> Generate -> Validate -> Heal -> Notify"** workflow.
+## 🚀 Arsitektur CI/CD (Docker Compose & GitHub Actions)
 
-1.  **Change Detection**: Hashes Swagger/TSX files to only regenerate tests for changed endpoints/pages.
-2.  **Context Injection**: Injects clean Swagger snippets (API) or Cleaned HTML DOM (UI) into Gemini Pro.
-3.  **Static Guardrails**: 5-layer validation (Imports, Skeleton, Assertions, Integrity, ESLint) to reject malformed AI outputs.
-4.  **Self-Healing Loop**: Executes a "Trial Run" locally. If failure occurs, feeds the runtime error + failed code back to Gemini for automatic correction.
-5.  **CI Quality Gate**: Orchestrates a 3-container environment (API + UI + Tester) to block PRs with failed generations.
+Proyek ini **sepenuhnya kompatibel dengan GitHub Actions dan cloud runner**, karena:
+1. Menggunakan Docker Image resmi `mcr.microsoft.com/playwright` versi terbaru yang berisi *OS dependencies* (.deb list) untuk Browser Headless.
+2. Generator Python disetel dengan *environment variable* `HEADLESS=true` dan `ANONYMIZED_TELEMETRY=false` sehingga Browser-Use bisa beroperasi tanpa memerlukan tampilan antarmuka (X11 server / monitor).
+3. GitHub API Artifacts: Artefak pelaporan uji Playwright HTML *(Playwright Report)* dan file log otomatis diunggah ke *Artifacts CI* setiap PR dieksekusi, mempermudah tim QA/Developer meninjau penyebab kegagalan (`--exit-code-from tester`).
 
----
+## 🛠 Instalasi dan Menjalankan Lokal (Local Testing)
 
-## 🧠 LLM Prompt Design
+Pastikan Windows/Mac/Linux Anda telah terinstall Docker Desktop.
 
-### 1. API Prompt Strategy (Swagger-to-Test)
-- **Schema-Aware**: Injects full Swagger `definitions` so the LLM understands `$ref` relationships.
-- **Ajv Validation**: Mandates the use of `ajv` for strict schema validation.
-- **Business Logic Aware**: Explicitly instructs the AI on the application's "Soft-Fail" design (200 OK with `status: failure`).
-
-### 2. UI/E2E Prompt Strategy (DOM-to-Flow)
-- **Cleaned DOM Injection**: Instead of raw HTML, we strip noisy Tailwind/CSS classes, SVGs, and scripts to keep the context window focused on structural elements (`role`, `label`, `name`).
-- **Anti-Fragile Selectors**: Forbids XPath and `.nth()`. Mandates `getByRole` and `getByLabel`.
-- **Exact Matching**: Enforces `{ exact: true }` for sensitive short fields like CVV and Expiry.
-
----
-
-## 🩹 Handling AI Failure & Flakiness
-
-### 1. Preventing Hallucinations
-- **Guardrail G5 (UI)**: Detects if the AI "invents" button labels (like generic `/submit/i`) that don't exist in the provided DOM snippet.
-- **Guardrail G6 (Assertion)**: Detects invalid assertion methods like `.getAttribute()` and enforces web-first `.toHaveAttribute()`.
-
-### 2. Self-Healing Workflow
-If a generated test fails its **Trial Run**:
-- The error log (e.g., `TimeoutError: waiting for locator...`) is captured.
-- A **Healing Prompt** is built containing: `[Failed Code] + [Error Log] + [Fresh DOM]`.
-- Gemini reconciles the error against the DOM and outputs a pass-ready version.
-
-### 3. Preventing Flaky UI Tests
-- **Web-First Assertions**: Uses `.toBeVisible()` instead of `.locator().count() > 0`.
-- **Label-First Strategy**: We modified `page.tsx` to include `htmlFor` and `id` links, ensuring the AI can use `getByLabel` which is significantly more stable than CSS selectors.
-
----
-
-### 📊 CI/CD Notification Example
-![Discord Notification](discord.png)
-
-The pipeline (`.github/workflows/ai-test-gen.yml`) ensures no broken code reaches production:
-1.  **Secret Injection**: `GEMINI_API_KEY` is securely injected from Repository Secrets.
-2.  **Atomic Generation**: Runs `npm run generate:all`. If generation fails all retries/models, the pipeline **HARD FAILS**.
-3.  **Docker Orchestration**: Spins up `go-api`, `next-ui`, and `playwright-tester`.
-4.  **Artifacts**: Produces a full `playwright-report` zip-artifact for every run.
-5.  **Discord Bot**: Sends a rich embed summary to Discord including pass/fail stats and download links to reports.
-
----
-
-## 📈 Scaling to Many Endpoints
-
-To handle hundreds of APIs, we implementation:
-- **Intelligent Caching**: Using `api_hashes.json` and `ui_hashes.json`. We only pay the AI token cost for what changed.
-- **Multi-Model Priority Fallback**:
-  - `gemini-3-pro-preview` (Most capable for complex flows)
-  - `gemini-3-flash-preview` (Fast & Cheap fallback)
-  - `gemini-flash-latest` (Quota protection)
-- **Parallel Generation**: Node.js scripts can be easily extended to parallelize generation across model families.
-
----
-
-## 🔑 Secret Handling & Setup
-
-### Local Injection
-1. Create a `.env` in the root (listed in `.gitignore`):
-   ```bash
-   GEMINI_API_KEY=your_key_here
-   STAGING_BASE_URL=http://localhost:3000
+1. Atur berkas lingkungan: Buka `application_code/.env` lalu masukkan API Key Anda:
+   ```env
+   GEMINI_API_KEY=AIzaSy...
    ```
-2. Run `npm install`.
+2. Nyalakan sistem orchestrator (API, UI, Test Generator, dan Test Runner):
+   ```bash
+   cd application_code
+   docker compose up --build --abort-on-container-exit
+   ```
+3. Cek folder `application_code/generated_test/`: Script tes otomatis `.spec.ts` dan rekaman interaksinya (`.md` & `.json`) akan terbit di sini.
+4. Cek folder `application_code/generated_test/playwright-report/` untuk melihat laporan HTML dari eksekusi tes Playwright.
 
-### CI Injection
-- Add `GEMINI_API_KEY` to GitHub Repo Secrets.
-- The workflow automatically maps it: `env: GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}`.
+## ♾ Integrasi GitHub Actions (Telah Diatur!)
 
----
-
-## 🚀 Repro Steps
-```bash
-# 1. Generate Tests (Detects changes & calls Gemini)
-npm run generate:all
-
-# 2. Run Quality Gate (Orchestrated Docker)
-docker-compose up --build --exit-code-from tester
-```
-
----
-*Developed by Antigravity AI SDET Suite.*
+Pipeline CI/CD telah tersedia di dalam file `.github/workflows/quality-gate.yml`. Cukup atur **Repository Secrets** di GitHub dengan nama `GEMINI_API_KEY`, dan *Quality Gate* akan langsung menyala pada setiap pembuatan **Pull Request** ke *branch* utama.
