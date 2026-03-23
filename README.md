@@ -27,7 +27,14 @@ Pastikan Windows/Mac/Linux Anda telah terinstall Docker Desktop.
 2. Nyalakan sistem orchestrator (API, UI, Test Generator, dan Test Runner):
    ```bash
    cd application_code
-   docker compose up --build --abort-on-container-exit
+   # Jalankan background services API & UI
+   docker compose up -d api ui
+   
+   # Eksekusi AI Generator (tunggu UI siap)
+   docker compose run --rm test-generator
+   
+   # Eksekusi Tester Playwright
+   docker compose run --rm tester
    ```
 3. Cek folder `application_code/generated_test/`: Script tes otomatis `.spec.ts` dan rekaman interaksinya (`.md` & `.json`) akan terbit di sini.
 4. Cek folder `application_code/generated_test/playwright-report/` untuk melihat laporan HTML dari eksekusi tes Playwright.

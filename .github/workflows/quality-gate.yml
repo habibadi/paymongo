@@ -29,7 +29,14 @@ jobs:
         # is the exit code of the primary container (which usually stops first, meaning 'tester').
         # If 'tester' fails asserting, this step will fail, failing the PR!
         run: |
-          docker compose up --build --abort-on-container-exit --exit-code-from tester
+          # Mulai services api & ui di background
+          docker compose up -d api ui
+          
+          # Jalankan AI Test Generator
+          docker compose run --rm test-generator
+          
+          # Jalankan Playwright Test Executor (Exit code akan di-pass ke GitHub Actions)
+          docker compose run --rm tester
       
       - name: Upload Playwright Report
         if: always()
