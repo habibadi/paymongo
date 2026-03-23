@@ -3,6 +3,13 @@ FROM mcr.microsoft.com/playwright/python:latest
 # Set working directory inside the container
 WORKDIR /app
 
+# Ensure Python 3.11 is available for browser-use (Playwright 'latest' uses Python 3.10)
+RUN apt-get update && apt-get install -y python3.11 python3.11-venv python3.11-dev curl && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && \
+    update-alternatives --set python3 /usr/bin/python3.11 && \
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11 && \
+    python3 -m pip install --upgrade pip
+
 # Copy the requirements file
 COPY scripts/requirements-browser-use.txt .
 
