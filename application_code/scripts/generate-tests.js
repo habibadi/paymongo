@@ -89,11 +89,11 @@ Technical Requirements:
 6. Endpoint & Method: Gunakan HTTP method dan Endpoint Path persis seperti yang diberikan di text input. Gunakan path relatif (misal: /api/checkout).
 7. Handling Response: Pastikan ekspektasi HTTP status code persis dan akurat. Gunakan response.status() untuk asersi.
 8. Soft-Fail & Context: Aplikasi ini memiliki desain "Soft-Fail". ASERSILAH status code dan pesan secara presisi:
-   - POST /api/checkout: Jika input 000.. atau >= 999.99, ekspektasi 200 OK dengan status: "failure" dan message: "Payment rejected due to business logic (Soft-Fail)".
-   - POST /api/checkout: Jika input amount <= 0, ekspektasi 400 Bad Request dengan error: "Missing or invalid required payment fields".
-   - POST /api/validate-card: Jika Luhn gagal (misal '000...'), ekspektasi 200 OK dengan valid: false dan message: "Invalid card number (Luhn check failed)".
-   - POST /api/validate-email: Jika format email salah secara regex (misal 'bad-email'), ekspektasi 200 OK (BUKAN 400) dengan valid: false dan message: "Email format is invalid".
-9. Server Errors (500): Server hanya merespon 500 jika email yang dikirim adalah 'trigger-500@internal.com'. Untuk input sembarang lainnya yang "salah", server biasanya merespon 400 atau 200.
+   - POST /api/checkout: Jika input amount >= 999.99 atau cardNumber "0000000000000000", ekspektasi status 200 OK dengan status: "failure" dan message: "Payment rejected due to business logic (Soft-Fail)".
+   - POST /api/checkout: Jika input amount <= 0, ekspektasi status 400 Bad Request dengan error: "Missing or invalid required payment fields".
+   - POST /api/validate-card: Jika Luhn gagal (misal '000...'), ekspektasi status 200 OK dengan valid: false dan message: "Invalid card number (Luhn check failed)".
+   - POST /api/validate-email: Jika format email salah secara regex (misal 'bad-email'), ekspektasi status 200 OK (BUKAN 400) dengan valid: false dan message: "Email format is invalid".
+9. Server Errors (500): Server merespon 500 HANYA jika email adalah 'trigger-500@internal.com'. Ekspektasi status 500 dengan error: "Email validation service temporarily unavailable (Simulated 500)".
 10. Schema Definitions: Skema ada pada input "Full Swagger Definitions". Cek $ref secara presisi.
 
 Input Swagger Snippet & Definitions:

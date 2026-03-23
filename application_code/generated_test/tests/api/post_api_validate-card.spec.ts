@@ -23,75 +23,66 @@ const errorResponseSchema = {
   "required": ["error"]
 };
 
-test.describe('POST /api/validate-card', () => {
+test.describe('API Automation: POST /api/validate-card', () => {
+  const endpoint = '/api/validate-card';
 
-  test('Happy Path - Should return valid true for a standard card number', async ({ request }) => {
+  test('Happy Path: Should return 200 OK for a valid card number', async ({ request }) => {
     const payload = {
       cardNumber: "4242424242424242"
     };
 
-    const response = await request.post('/api/validate-card', {
-      data: payload
-    });
-
-    // Assertion: Status Code
-    expect(response.status()).toBe(200);
-
+    const response = await request.post(endpoint, { data: payload });
     const responseBody = await response.json();
 
-    // Assertion: Schema Validation
+    // Assertions
+    expect(response.status()).toBe(200);
+    
+    // Schema Validation
     const validate = ajv.compile(cardResponseSchema);
     const valid = validate(responseBody);
     expect(valid, `Schema errors: ${JSON.stringify(validate.errors)}`).toBe(true);
 
-    // Assertion: Business Logic
+    // Data Assertions
     expect(responseBody.valid).toBe(true);
     expect(responseBody.message).toContain('validated');
   });
 
-  test('Negative Path - Soft-Fail - Should return valid false for invalid Luhn number', async ({ request }) => {
+  test('Negative Path: Should return 200 OK with Soft-Fail for invalid Luhn check', async ({ request }) => {
     const payload = {
       cardNumber: "0000000000000000"
     };
 
-    const response = await request.post('/api/validate-card', {
-      data: payload
-    });
-
-    // Assertion: Status Code (Soft-Fail expects 200 OK)
-    expect(response.status()).toBe(200);
-
+    const response = await request.post(endpoint, { data: payload });
     const responseBody = await response.json();
 
-    // Assertion: Schema Validation
+    // Assertions
+    expect(response.status()).toBe(200);
+
+    // Schema Validation
     const validate = ajv.compile(cardResponseSchema);
     const valid = validate(responseBody);
-    expect(valid).toBe(true);
+    expect(valid, `Schema errors: ${JSON.stringify(validate.errors)}`).toBe(true);
 
-    // Assertion: Precision Business Message
+    // Data Assertions for Soft-Fail logic
     expect(responseBody.valid).toBe(false);
     expect(responseBody.message).toBe("Invalid card number (Luhn check failed)");
   });
 
-  test('Negative Path - Bad Request - Should return 400 when cardNumber is missing', async ({ request }) => {
-    const payload = {}; // Missing required cardNumber field
+  test('Negative Path: Should return 400 Bad Request for missing required fields', async ({ request }) => {
+    const payload = {}; // Missing cardNumber
 
-    const response = await request.post('/api/validate-card', {
-      data: payload
-    });
-
-    // Assertion: Status Code
-    expect(response.status()).toBe(400);
-
+    const response = await request.post(endpoint, { data: payload });
     const responseBody = await response.json();
 
-    // Assertion: Schema Validation
+    // Assertions
+    expect(response.status()).toBe(400);
+
+    // Schema Validation for Error Response
     const validate = ajv.compile(errorResponseSchema);
     const valid = validate(responseBody);
-    expect(valid).toBe(true);
+    expect(valid, `Schema errors: ${JSON.stringify(validate.errors)}`).toBe(true);
 
-    // Assertion: Error Message
-    expect(responseBody.error).toBeTruthy();
+    // Data Assertions
+    expect(responseBody.error).toBeDefined();
   });
-
 });
