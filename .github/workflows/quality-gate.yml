@@ -2,9 +2,9 @@ name: SDET Quality Gate (AI-Driven Testing)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, master ]
 
 jobs:
   test:
@@ -19,67 +19,167 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: application_code/package-lock.json
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # ─────────────────────────────────────────────
-      # STEP 1: Install Node.js dependencies for API Test Generator
-      # ─────────────────────────────────────────────
+      # ── PRE-RUN: Cache hashes ────────────────────────────────────────────────
+      - name: Restore Test Generation Cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/
+          key: test-gen-cache-${{ hashFiles('application_code/docs/swagger.json', 'application_code/app/page.tsx') }}
+          restore-keys: |
+            test-gen-cache-
+
+      # ── STEP 1: Install Dependencies ──────────────────────────────────────────
       - name: Install API Generator Dependencies
         working-directory: ./application_code
         run: npm install
 
-      # ─────────────────────────────────────────────
-      # STEP 2: Run API Test Generator with Gemini
-      # Reads docs/swagger.json, generates spec files into generated_test/tests/api/
-      # ─────────────────────────────────────────────
+      # ── STEP 2: Generate API Tests (Gemini) ───────────────────────────────────
       - name: Generate API Tests from Swagger (Gemini)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         working-directory: ./application_code
         run: node scripts/generate-tests.js
 
-      # ─────────────────────────────────────────────
-      # STEP 3: Start API & UI services in the background
-      # ─────────────────────────────────────────────
+      # ── STEP 3: Start Services ────────────────────────────────────────────────
       - name: Start API & UI Services (Background)
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         working-directory: ./application_code
         run: |
           docker compose up -d --build api ui
           echo "Waiting for services to be healthy..."
           sleep 30
 
-      # ─────────────────────────────────────────────
-      # STEP 4: Run Browser-Use AI UI Test Generator
-      # Explores UI, generates spec files into generated_test/tests/web/
-      # ─────────────────────────────────────────────
-      - name: Generate UI Tests (Browser-Use AI Agent)
+      # ── STEP 4: Generate UI Tests (Browser-Use AI Agent) ──────────────────────
+      - name: Generate UI Tests (Browser-Use AI)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         working-directory: ./application_code
         run: |
           docker compose run --rm test-generator
 
-      # ─────────────────────────────────────────────
-      # STEP 5: Run Playwright Tests (API + Web)
-      # If any test fails, this step fails → PR blocked!
-      # ─────────────────────────────────────────────
+      # ── STEP 5: Sync Generated Tests to Playwright Template ───────────────────
+      - name: Sync Generated Tests
+        run: |
+          mkdir -p playwright_template/tests/api/generated
+          mkdir -p playwright_template/tests/web/generated
+          
+          # Sync API tests if they exist
+          if [ -d "application_code/generated_test/tests/api" ]; then
+            cp application_code/generated_test/tests/api/*.spec.ts playwright_template/tests/api/generated/ 2>/dev/null || true
+          fi
+          
+          # Sync UI tests if they exist
+          if [ -d "application_code/generated_test/tests/web" ]; then
+            cp application_code/generated_test/tests/web/*.spec.ts playwright_template/tests/web/generated/ 2>/dev/null || true
+          fi
+
+      # ── STEP 6: Run Playwright Quality Gate (API + Web) ───────────────────────
       - name: Run Playwright Quality Gate
+        id: playwright
         working-directory: ./application_code
         run: |
           docker compose run --rm tester
 
-      # ─────────────────────────────────────────────
-      # STEP 6: Upload Playwright Report Artifact
-      # Available even if tests fail
-      # ─────────────────────────────────────────────
+      # ── POST-RUN: Upload Artifacts ────────────────────────────────────────────
       - name: Upload Playwright Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ github.run_number }}
           path: ./application_code/generated_test/playwright-report/
           retention-days: 7
+
+      - name: Upload JUnit XML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-results-${{ github.run_number }}
+          path: ./application_code/generated_test/test-results/results.xml
+          retention-days: 7
+
+      # ── NOTIFY: Discord Webhook ───────────────────────────────────────────────
+      - name: Notify Discord
+        if: always()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "DISCORD_WEBHOOK is not set, skipping notification."
+            exit 0
+          fi
+
+          # 1. Count generated test files
+          API_COUNT=$(ls application_code/generated_test/tests/api/*.spec.ts 2>/dev/null | wc -l | tr -d ' ')
+          UI_COUNT=$(ls application_code/generated_test/tests/web/*.spec.ts 2>/dev/null | wc -l | tr -d ' ')
+          GEN_TEXT="🤖 **Generated**: $API_COUNT API tests | $UI_COUNT UI tests"
+
+          # 2. Parse Test Stats from JUnit XML
+          XML_PATH="application_code/generated_test/test-results/results.xml"
+          if [ -f "$XML_PATH" ]; then
+            TOTAL=$(grep -oP 'tests="\K[^"]+' "$XML_PATH" | head -1 || echo "0")
+            FAILURES=$(grep -oP 'failures="\K[^"]+' "$XML_PATH" | head -1 || echo "0")
+            ERRORS=$(grep -oP 'errors="\K[^"]+' "$XML_PATH" | head -1 || echo "0")
+            FAILED_COUNT=$((FAILURES + ERRORS))
+            PASSED_COUNT=$((TOTAL - FAILED_COUNT))
+            STATS_TEXT="📊 **Stats**: Total $TOTAL | ✅ Pass $PASSED_COUNT | ❌ Fail $FAILED_COUNT"
+          else
+            STATS_TEXT="📊 **Stats**: Testing stage not reached or failed early"
+          fi
+
+          # 3. Zip the Playwright Report for sharing
+          REPORT_ZIP="playwright-report.zip"
+          REPORT_DIR="application_code/generated_test/playwright-report"
+          if [ -d "$REPORT_DIR" ]; then
+            zip -r "$REPORT_ZIP" "$REPORT_DIR"
+          fi
+
+          # 4. Prepare Discord Payload
+          STATUS="${{ job.status }}"
+          COLOR="65280"        # Green
+          EMOJI="✅"
+          if [ "$STATUS" = "failure" ]; then
+            COLOR="16711680"   # Red
+            EMOJI="❌"
+          elif [ "$STATUS" = "cancelled" ]; then
+            COLOR="16776960"   # Yellow
+            EMOJI="⚠️"
+          fi
+
+          PAYLOAD=$(cat <<EOF
+          {
+            "embeds": [{
+              "title": "$EMOJI CI/CD Status: $STATUS",
+              "color": $COLOR,
+              "description": "$GEN_TEXT\n$STATS_TEXT",
+              "fields": [
+                { "name": "Repository", "value": "${{ github.repository }}", "inline": true },
+                { "name": "Branch", "value": "${{ github.ref_name }}", "inline": true },
+                { "name": "Triggered By", "value": "${{ github.actor }}", "inline": true },
+                { "name": "Commit", "value": "${{ github.event.head_commit.message }}", "inline": false },
+                { "name": "Action Run", "value": "[View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})", "inline": false }
+              ],
+              "footer": { "text": "AI-Powered SDET Pipeline • Powered by Gemini" },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }]
+          }
+          EOF
+          )
+
+          # 5. Send to Discord (multipart with zip if available)
+          if [ -f "$REPORT_ZIP" ]; then
+            curl -s -X POST \
+              -H "Content-Type: multipart/form-data" \
+              -F "payload_json=$PAYLOAD" \
+              -F "file=@$REPORT_ZIP" \
+              "$DISCORD_WEBHOOK"
+          else
+            curl -s -X POST \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD" \
+              "$DISCORD_WEBHOOK"
+          fi

@@ -2,24 +2,19 @@ import { test, expect } from '@playwright/test';
 import Ajv from 'ajv';
 
 /**
- * Senior SDET API Automation
- * Endpoint: POST /api/validate-email
+ * API Automation Test: POST /api/validate-email
+ * Framework: Playwright Test
+ * Validation: Ajv JSON Schema
  */
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 
-// Schema Definitions based on Swagger
+// Schema definitions based on Swagger $ref
 const emailResponseSchema = {
   "type": "object",
   "properties": {
-    "message": {
-      "type": "string",
-      "example": "Email is valid"
-    },
-    "valid": {
-      "type": "boolean",
-      "example": true
-    }
+    "message": { "type": "string", "example": "Email is valid (or 'Email format is invalid')" },
+    "valid": { "type": "boolean", "example": true }
   },
   "required": ["message", "valid"]
 };
@@ -27,88 +22,84 @@ const emailResponseSchema = {
 const errorResponseSchema = {
   "type": "object",
   "properties": {
-    "error": {
-      "type": "string",
-      "example": "Internal server error"
-    }
+    "error": { "type": "string", "example": "Internal server error" }
   },
   "required": ["error"]
 };
 
-test.describe('POST /api/validate-email API Tests', () => {
+test.describe('API Test: POST /api/validate-email', () => {
 
-  test('Should return 200 OK with valid: true for a correct email format (Happy Path)', async ({ request }) => {
+  test('Happy Path: Should validate a correct email format successfully', async ({ request }) => {
+    const emailPayload = {
+      email: "test.user@example.com"
+    };
+
     const response = await request.post('/api/validate-email', {
-      data: {
-        email: "qa.test@example.com"
-      }
+      data: emailPayload
     });
 
+    // Assert Status Code
     expect(response.status()).toBe(200);
-    
+
     const responseBody = await response.json();
-    
+
     // Schema Validation
     const validate = ajv.compile(emailResponseSchema);
-    const valid = validate(responseBody);
-    expect(valid, `Schema validation errors: ${JSON.stringify(validate.errors)}`).toBe(true);
-    
+    const isValid = validate(responseBody);
+    if (!isValid) {
+      throw new Error(`JSON Schema Validation Error: ${JSON.stringify(validate.errors)}`);
+    }
+
     // Business Logic Assertion
     expect(responseBody.valid).toBe(true);
-    expect(responseBody.message).toContain('valid');
+    expect(responseBody.message).toContain('Email is valid');
   });
 
-  test('Should return 200 OK with valid: false for invalid business logic email (Soft-Fail)', async ({ request }) => {
-    // Scenario: Email is syntactically correct but rejected by business logic
+  test('Negative Path: Should return 200 OK with valid false for incorrect email format (Soft-Fail)', async ({ request }) => {
+    const emailPayload = {
+      email: "bad-email"
+    };
+
     const response = await request.post('/api/validate-email', {
-      data: {
-        email: "rejected@blacklisted.com"
-      }
+      data: emailPayload
     });
 
-    // Based on Soft-Fail design: Business logic invalid returns 200 OK
+    // Assert Status Code per requirement (200 OK for Soft-Fail)
     expect(response.status()).toBe(200);
-    
+
     const responseBody = await response.json();
-    
+
     // Schema Validation
     const validate = ajv.compile(emailResponseSchema);
-    const valid = validate(responseBody);
-    expect(valid, `Schema validation errors: ${JSON.stringify(validate.errors)}`).toBe(true);
-    
-    // Business Logic Assertion - Soft Fail
+    const isValid = validate(responseBody);
+    expect(isValid).toBe(true);
+
+    // Precise Business Logic Assertion
     expect(responseBody.valid).toBe(false);
+    expect(responseBody.message).toBe("Email format is invalid");
   });
 
-  test('Should return 400 Bad Request when sending invalid data types', async ({ request }) => {
+  test('Negative Path: Should return 500 Internal Server Error for specific trigger email', async ({ request }) => {
+    const emailPayload = {
+      email: "trigger-500@internal.com"
+    };
+
     const response = await request.post('/api/validate-email', {
-      data: {
-        email: 12345 // Incorrect type: number instead of string
-      }
+      data: emailPayload
     });
 
-    // Server returns 400 for input format errors
-    expect(response.status()).toBe(400);
-  });
-
-  test('Should return 500 Internal Server Error for server-side failures', async ({ request }) => {
-    // Triggering 500 (scenario-based)
-    const response = await request.post('/api/validate-email', {
-      data: {
-        email: "trigger-500@error.com"
-      }
-    });
-
+    // Assert Status Code
     expect(response.status()).toBe(500);
-    
+
     const responseBody = await response.json();
-    
-    // Schema Validation for Error Response
+
+    // Schema Validation against ErrorResponse
     const validate = ajv.compile(errorResponseSchema);
-    const valid = validate(responseBody);
-    expect(valid, `Schema validation errors: ${JSON.stringify(validate.errors)}`).toBe(true);
-    
-    expect(responseBody).toHaveProperty('error');
+    const isValid = validate(responseBody);
+    expect(isValid).toBe(true);
+
+    // Error Message Assertion
+    expect(responseBody.error).toBeDefined();
   });
 
 });

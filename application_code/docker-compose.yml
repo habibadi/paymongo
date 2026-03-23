@@ -6,6 +6,8 @@ services:
       dockerfile: Dockerfile.api
     ports:
       - "8080:8080"
+    networks:
+      - app-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
       interval: 5s
@@ -23,6 +25,8 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://api:8080
+    networks:
+      - app-network
     depends_on:
       api:
         condition: service_healthy
@@ -32,7 +36,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Browser-Use AI Test Generator
+  # Browser-Use AI Test Generator (UI Focused)
   test-generator:
     build:
       context: .
@@ -42,6 +46,8 @@ services:
       - STAGING_BASE_URL=http://ui:3000
       - HEADLESS=true
       - ANONYMIZED_TELEMETRY=false
+    networks:
+      - app-network
     volumes:
       - ./generated_test:/app/generated_test
     depends_on:
@@ -49,9 +55,6 @@ services:
         condition: service_healthy
 
   # Final Test Executor (Playwright)
-  # NOTE: depends_on is intentionally removed here.
-  # In CI, this service is started explicitly via `docker compose run --rm tester`
-  # after all generator services have completed, ensuring correct sequencing.
   tester:
     build:
       context: ..
@@ -59,5 +62,16 @@ services:
     environment:
       - STAGING_BASE_URL=http://ui:3000
       - STAGING_API_URL=http://api:8080
+    networks:
+      - app-network
     volumes:
       - ./generated_test:/test-runner/generated_test
+    depends_on:
+      api:
+        condition: service_healthy
+      ui:
+        condition: service_healthy
+
+networks:
+  app-network:
+    driver: bridge

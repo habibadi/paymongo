@@ -11,7 +11,7 @@
     "paths": {
         "/api/checkout": {
             "post": {
-                "description": "Process a payment with card details (mock implementation)",
+                "description": "Process a payment with card details. Triggers Soft-Fail (200 OK, status: failure) if amount >= 999.99 orcardNumber is '0000000000000000'.",
                 "consumes": [
                     "application/json"
                 ],
@@ -111,7 +111,7 @@
         },
         "/api/validate-email": {
             "post": {
-                "description": "Validates email address format - ALWAYS RETURNS 500 (for testing soft failure)",
+                "description": "Validates email address format. Returns 500 ONLY if email is 'trigger-500@internal.com'. Returns 200 with valid:false for other invalid formats.",
                 "consumes": [
                     "application/json"
                 ],
@@ -165,7 +165,7 @@
             "properties": {
                 "message": {
                     "type": "string",
-                    "example": "Card number is valid"
+                    "example": "Card number validated (or 'Invalid card number (Luhn check failed)')"
                 },
                 "valid": {
                     "type": "boolean",
@@ -187,7 +187,7 @@
             "properties": {
                 "message": {
                     "type": "string",
-                    "example": "Email is valid"
+                    "example": "Email is valid (or 'Email format is invalid')"
                 },
                 "valid": {
                     "type": "boolean",
@@ -243,7 +243,7 @@
             "properties": {
                 "message": {
                     "type": "string",
-                    "example": "Payment processed successfully!"
+                    "example": "Payment processed successfully! (or 'Payment rejected due to business logic (Soft-Fail)')"
                 },
                 "status": {
                     "type": "string",
