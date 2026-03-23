@@ -49,6 +49,9 @@ services:
         condition: service_healthy
 
   # Final Test Executor (Playwright)
+  # NOTE: depends_on is intentionally removed here.
+  # In CI, this service is started explicitly via `docker compose run --rm tester`
+  # after all generator services have completed, ensuring correct sequencing.
   tester:
     build:
       context: ..
@@ -58,6 +61,3 @@ services:
       - STAGING_API_URL=http://api:8080
     volumes:
       - ./generated_test:/test-runner/generated_test
-    depends_on:
-      test-generator:
-        condition: service_completed_successfully

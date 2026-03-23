@@ -15,29 +15,67 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Setting up Node & Go might not be strictly necessary because Docker handles it,
-      # but it's good practice if any local pre-commit/lints need to run later.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Run E2E & API Quality Gate via Docker Compose
+      # ─────────────────────────────────────────────
+      # STEP 1: Install Node.js dependencies for API Test Generator
+      # ─────────────────────────────────────────────
+      - name: Install API Generator Dependencies
+        working-directory: ./application_code
+        run: npm install
+
+      # ─────────────────────────────────────────────
+      # STEP 2: Run API Test Generator with Gemini
+      # Reads docs/swagger.json, generates spec files into generated_test/tests/api/
+      # ─────────────────────────────────────────────
+      - name: Generate API Tests from Swagger (Gemini)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         working-directory: ./application_code
-        # docker-compose up --abort-on-container-exit will automatically stop 
-        # all containers when one stops. The exit code of the compose command 
-        # is the exit code of the primary container (which usually stops first, meaning 'tester').
-        # If 'tester' fails asserting, this step will fail, failing the PR!
+        run: node scripts/generate-tests.js
+
+      # ─────────────────────────────────────────────
+      # STEP 3: Start API & UI services in the background
+      # ─────────────────────────────────────────────
+      - name: Start API & UI Services (Background)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        working-directory: ./application_code
         run: |
-          # Mulai services api & ui di background
-          docker compose up -d api ui
-          
-          # Jalankan AI Test Generator
+          docker compose up -d --build api ui
+          echo "Waiting for services to be healthy..."
+          sleep 30
+
+      # ─────────────────────────────────────────────
+      # STEP 4: Run Browser-Use AI UI Test Generator
+      # Explores UI, generates spec files into generated_test/tests/web/
+      # ─────────────────────────────────────────────
+      - name: Generate UI Tests (Browser-Use AI Agent)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        working-directory: ./application_code
+        run: |
           docker compose run --rm test-generator
-          
-          # Jalankan Playwright Test Executor (Exit code akan di-pass ke GitHub Actions)
+
+      # ─────────────────────────────────────────────
+      # STEP 5: Run Playwright Tests (API + Web)
+      # If any test fails, this step fails → PR blocked!
+      # ─────────────────────────────────────────────
+      - name: Run Playwright Quality Gate
+        working-directory: ./application_code
+        run: |
           docker compose run --rm tester
-      
+
+      # ─────────────────────────────────────────────
+      # STEP 6: Upload Playwright Report Artifact
+      # Available even if tests fail
+      # ─────────────────────────────────────────────
       - name: Upload Playwright Report
         if: always()
         uses: actions/upload-artifact@v4
