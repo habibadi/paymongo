@@ -1,0 +1,174 @@
+[
+  [
+    null
+  ],
+  [
+    {
+      "node_id": 246,
+      "backend_node_id": 7,
+      "frame_id": null,
+      "node_type": 1,
+      "node_value": "",
+      "node_name": "INPUT",
+      "attributes": {
+        "id": "email",
+        "type": "email",
+        "placeholder": "you@example.com",
+        "class": "w-full p-4 pr-12 border-2 rounded-xl focus:ring-4 focus:ring-purple-200 focus:border-purple-500 transition-all duration-300 bg-white hover:border-gray-300 placeholder-gray-400 border-gray-200",
+        "required": "",
+        "name": "email",
+        "value": ""
+      },
+      "bounds": {
+        "x": 760.0,
+        "y": 374.5,
+        "width": 384.0,
+        "height": 60.0
+      },
+      "x_path": "html/body/div[2]/div/form/div[1]/div/input",
+      "element_hash": 1066542310135552020,
+      "stable_hash": 17699474436045689286,
+      "ax_name": "Email Address"
+    },
+    {
+      "node_id": 257,
+      "backend_node_id": 8,
+      "frame_id": null,
+      "node_type": 1,
+      "node_value": "",
+      "node_name": "INPUT",
+      "attributes": {
+        "id": "cardNumber",
+        "type": "text",
+        "placeholder": "1234 5678 9012 3456",
+        "maxlength": "19",
+        "class": "w-full p-4 pr-12 border-2 rounded-xl focus:ring-4 focus:ring-purple-200 focus:border-purple-500 transition-all duration-300 bg-white hover:border-gray-300 placeholder-gray-400 font-mono text-lg tracking-wide border-gray-200",
+        "required": "",
+        "name": "cardNumber",
+        "value": ""
+      },
+      "bounds": {
+        "x": 760.0,
+        "y": 482.5,
+        "width": 384.0,
+        "height": 64.0
+      },
+      "x_path": "html/body/div[2]/div/form/div[2]/div/input",
+      "element_hash": 1332690790055092291,
+      "stable_hash": 9675202565063053451,
+      "ax_name": "Card Number"
+    },
+    {
+      "node_id": 268,
+      "backend_node_id": 9,
+      "frame_id": null,
+      "node_type": 1,
+      "node_value": "",
+      "node_name": "INPUT",
+      "attributes": {
+        "id": "expiry",
+        "type": "text",
+        "placeholder": "MM/YY",
+        "maxlength": "5",
+        "class": "w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-purple-200 focus:border-purple-500 transition-all duration-300 bg-white hover:border-gray-300 placeholder-gray-400 font-mono",
+        "required": "",
+        "name": "expiry",
+        "value": ""
+      },
+      "bounds": {
+        "x": 760.0,
+        "y": 594.5,
+        "width": 184.0,
+        "height": 60.0
+      },
+      "x_path": "html/body/div[2]/div/form/div[3]/div[1]/input",
+      "element_hash": 345614684357082583,
+      "stable_hash": 9120447347017737870,
+      "ax_name": "Expiry"
+    },
+    {
+      "node_id": 278,
+      "backend_node_id": 10,
+      "frame_id": null,
+      "node_type": 1,
+      "node_value": "",
+      "node_name": "INPUT",
+      "attributes": {
+        "id": "cvv",
+        "type": "password",
+        "placeholder": "123",
+        "maxlength": "4",
+        "class": "w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-purple-200 focus:border-purple-500 transition-all duration-300 bg-white hover:border-gray-300 placeholder-gray-400 font-mono text-center",
+        "required": "",
+        "name": "cvv",
+        "value": ""
+      },
+      "bounds": {
+        "x": 960.0,
+        "y": 594.5,
+        "width": 184.0,
+        "height": 60.0
+      },
+      "x_path": "html/body/div[2]/div/form/div[3]/div[2]/input",
+      "element_hash": 464326564286265870,
+      "stable_hash": 1759402048607046385,
+      "ax_name": "CVV"
+    },
+    {
+      "node_id": 291,
+      "backend_node_id": 11,
+      "frame_id": null,
+      "node_type": 1,
+      "node_value": "",
+      "node_name": "INPUT",
+      "attributes": {
+        "id": "amount",
+        "type": "number",
+        "placeholder": "0.00",
+        "step": "0.01",
+        "min": "0.01",
+        "class": "w-full p-4 pl-10 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-purple-200 focus:border-purple-500 transition-all duration-300 bg-white hover:border-gray-300 placeholder-gray-400 text-lg font-semibold",
+        "required": "",
+        "name": "amount",
+        "value": ""
+      },
+      "bounds": {
+        "x": 760.0,
+        "y": 702.5,
+        "width": 384.0,
+        "height": 64.0
+      },
+      "x_path": "html/body/div[2]/div/form/div[4]/div/input",
+      "element_hash": 980910920217938788,
+      "stable_hash": 6016055582778454895,
+      "ax_name": "Amount (USD)"
+    }
+  ],
+  [
+    {
+      "node_id": 526,
+      "backend_node_id": 5,
+      "frame_id": null,
+      "node_type": 1,
+      "node_value": "",
+      "node_name": "BUTTON",
+      "attributes": {
+        "type": "submit",
+        "class": "w-full p-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-bold text-lg transition-all duration-300 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center"
+      },
+      "bounds": {
+        "x": 760.0,
+        "y": 797.5,
+        "width": 384.0,
+        "height": 60.0
+      },
+      "x_path": "html/body/div[2]/div/form/button",
+      "element_hash": 278514686977172127,
+      "stable_hash": 15702452948847270745,
+      "ax_name": "Pay $50.00"
+    }
+  ],
+  [
+    null
+  ]
+]
